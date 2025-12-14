@@ -1,0 +1,16 @@
+{
+  "name": "academic-equipment-order-system",
+  "version": "1.0.0",
+  "description": "Academic Equipment Order System - Full Stack",
+  "scripts": {
+    "start": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "cd backend && npm start",
+    "frontend": "cd frontend && npm start",
+    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend\"",
+    "backend:dev": "cd backend && npm run dev",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -1,23 +1,48 @@
-import React, { useState } from 'react';
-import { mockLogs, mockUsers } from '../data/mockData';
+import React, { useState, useEffect } from 'react';
+import { logsApi, usersApi } from '../services/api';
 import { formatDate } from '../utils';
 import { Activity, Filter } from 'lucide-react';
 
 export default function Logs() {
+  const [logs, setLogs] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filterAction, setFilterAction] = useState('');
   const [filterUser, setFilterUser] = useState('');
 
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [logsData, usersData] = await Promise.all([
+          logsApi.getAll(),
+          usersApi.getAll()
+        ]);
+        setLogs(logsData);
+        setUsers(usersData);
+      } catch (error) {
+        console.error('Failed to load data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
   const getUserName = (userId) => {
-    return mockUsers.find(u => u.id === userId)?.username || 'Unknown';
+    return users.find(u => u.id === userId)?.username || 'Unknown';
   };
 
-  const filteredLogs = mockLogs.filter(log => {
+  const filteredLogs = logs.filter(log => {
     if (filterAction && log.action !== filterAction) return false;
     if (filterUser && log.userId !== parseInt(filterUser)) return false;
     return true;
   });
 
-  const actions = [...new Set(mockLogs.map(log => log.action))];
+  const actions = [...new Set(logs.map(log => log.action))];
+
+  if (loading) {
+    return <div className="loading-screen">Loading logs...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -54,7 +79,7 @@ export default function Logs() {
               style={{ width: 'auto' }}
             >
               <option value="">All Users</option>
-              {mockUsers.map(user => (
+              {users.map(user => (
                 <option key={user.id} value={user.id}>{user.username}</option>
               ))}
             </select>

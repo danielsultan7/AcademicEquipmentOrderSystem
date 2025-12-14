@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { mockProducts } from '../data/mockData';
+import React, { useState, useEffect } from 'react';
+import { productsApi } from '../services/api';
 import { formatCurrency } from '../utils';
 import { Plus, Edit2, Trash2, X } from 'lucide-react';
 
 export default function ManageProducts() {
-  const [products, setProducts] = useState(mockProducts);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -14,6 +15,21 @@ export default function ManageProducts() {
     price: '',
     quantity: ''
   });
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  const loadProducts = async () => {
+    try {
+      const data = await productsApi.getAll();
+      setProducts(data);
+    } catch (error) {
+      console.error('Failed to load products:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const categories = ['Microscopes', 'Telescopes', 'Lab Equipment', 'Computer Hardware', 'Software', 'Audio Visual', 'Electronics'];
 
@@ -35,15 +51,19 @@ export default function ManageProducts() {
     setShowForm(true);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
-      setProducts(products.filter(p => p.id !== id));
-      const mockIndex = mockProducts.findIndex(p => p.id === id);
-      if (mockIndex > -1) mockProducts.splice(mockIndex, 1);
+      try {
+        await productsApi.delete(id);
+        setProducts(products.filter(p => p.id !== id));
+      } catch (error) {
+        console.error('Failed to delete product:', error);
+        alert('Failed to delete product');
+      }
     }
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.category || !formData.price || !formData.quantity) {
       alert('Please fill in all fields');
@@ -58,49 +78,34 @@ export default function ManageProducts() {
       return;
     }
 
-    if (editingId) {
-      const updatedProducts = products.map(p =>
-        p.id === editingId
-          ? {
-              ...p,
-              name: formData.name,
-              category: formData.category,
-              description: formData.description,
-              price,
-              quantity,
-              status: quantity > 0 ? 'available' : 'unavailable'
-            }
-          : p
-      );
-      setProducts(updatedProducts);
-      const mockProduct = mockProducts.find(p => p.id === editingId);
-      if (mockProduct) {
-        Object.assign(mockProduct, {
-          name: formData.name,
-          category: formData.category,
-          description: formData.description,
-          price,
-          quantity,
-          status: quantity > 0 ? 'available' : 'unavailable'
-        });
-      }
-    } else {
-      const newProduct = {
-        id: Math.max(...mockProducts.map(p => parseInt(p.id)), 0) + 1,
+    try {
+      const productData = {
         name: formData.name,
         category: formData.category,
         description: formData.description,
         price,
-        quantity,
-        status: quantity > 0 ? 'available' : 'unavailable'
+        quantity
       };
-      setProducts([...products, newProduct]);
-      mockProducts.push(newProduct);
-    }
 
-    setShowForm(false);
-    setFormData({ name: '', category: '', description: '', price: '', quantity: '' });
+      if (editingId) {
+        const updated = await productsApi.update(editingId, productData);
+        setProducts(products.map(p => p.id === editingId ? updated : p));
+      } else {
+        const newProduct = await productsApi.create(productData);
+        setProducts([...products, newProduct]);
+      }
+
+      setShowForm(false);
+      setFormData({ name: '', category: '', description: '', price: '', quantity: '' });
+    } catch (error) {
+      console.error('Failed to save product:', error);
+      alert('Failed to save product');
+    }
   };
+
+  if (loading) {
+    return <div className="loading-screen">Loading products...</div>;
+  }
 
   return (
     <div className="space-y-6">

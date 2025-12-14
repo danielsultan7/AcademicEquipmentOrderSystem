@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "username": "admin",
+    "password": "admin123",
+    "role": "admin"
+  },
+  {
+    "id": 2,
+    "username": "john_pm",
+    "password": "pm123",
+    "role": "procurement_manager"
+  },
+  {
+    "id": 3,
+    "username": "customer_user",
+    "password": "customer123",
+    "role": "customer"
+  },
+  {
+    "id": 4,
+    "username": "Daniel123",
+    "password": "default123",
+    "role": "customer"
+  }
+]

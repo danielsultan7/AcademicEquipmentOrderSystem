@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { mockOrders, mockUsers, mockProducts } from '../data/mockData';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ordersApi, usersApi, productsApi } from '../services/api';
 import { formatCurrency, formatDate } from '../utils';
 import { ShoppingCart } from 'lucide-react';
 import { useAuth } from '../components/AuthContext';
@@ -7,32 +7,71 @@ import { ROLE_ADMIN, ROLE_CUSTOMER, ROLE_PROCUREMENT_MANAGER } from '../constant
 
 export default function Orders() {
   const { currentUser } = useAuth();
-  const [localOrders, setLocalOrders] = useState(mockOrders);
+  const [orders, setOrders] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [ordersData, usersData, productsData] = await Promise.all([
+          ordersApi.getAll(),
+          usersApi.getAll(),
+          productsApi.getAll()
+        ]);
+        setOrders(ordersData);
+        setUsers(usersData);
+        setProducts(productsData);
+      } catch (error) {
+        console.error('Failed to load data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
   const getUserName = (userId) => {
-    return mockUsers.find(u => u.id === userId)?.username || 'Unknown';
+    return users.find(u => u.id === userId)?.username || 'Unknown';
   };
 
   const getProductName = (productId) => {
-    return mockProducts.find(p => p.id === productId)?.name || 'Unknown';
+    return products.find(p => p.id === productId)?.name || 'Unknown';
   };
 
   const visibleOrders = useMemo(() => {
     if (currentUser?.role === ROLE_CUSTOMER) {
-      return localOrders.filter(o => o.userId === currentUser.id);
+      return orders.filter(o => o.userId === currentUser.id);
     }
-    return localOrders;
-  }, [localOrders, currentUser]);
+    return orders;
+  }, [orders, currentUser]);
 
-  const approveOrder = (orderId) => {
-    setLocalOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'approved' } : o));
+  const approveOrder = async (orderId) => {
+    try {
+      await ordersApi.approve(orderId);
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'approved' } : o));
+    } catch (error) {
+      console.error('Failed to approve order:', error);
+      alert('Failed to approve order');
+    }
   };
 
-  const rejectOrder = (orderId) => {
-    setLocalOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'rejected' } : o));
+  const rejectOrder = async (orderId) => {
+    try {
+      await ordersApi.reject(orderId);
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'rejected' } : o));
+    } catch (error) {
+      console.error('Failed to reject order:', error);
+      alert('Failed to reject order');
+    }
   };
 
   const canManage = currentUser?.role === ROLE_ADMIN || currentUser?.role === ROLE_PROCUREMENT_MANAGER;
+
+  if (loading) {
+    return <div className="loading-screen">Loading orders...</div>;
+  }
 
   return (
     <div className="space-y-6">

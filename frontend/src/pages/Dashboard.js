@@ -1,13 +1,39 @@
-import React from 'react';
-import { mockProducts, mockOrders } from '../data/mockData';
+import React, { useState, useEffect } from 'react';
+import { productsApi, ordersApi } from '../services/api';
 import { formatCurrency, formatDate } from '../utils';
 import { TrendingUp, Package, ShoppingCart, AlertCircle } from 'lucide-react';
 
 export default function Dashboard() {
-  const totalProducts = mockProducts.length;
-  const totalOrders = mockOrders.length;
-  const totalValue = mockProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
-  const lowStockItems = mockProducts.filter(p => p.quantity < 5).length;
+  const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [productsData, ordersData] = await Promise.all([
+          productsApi.getAll(),
+          ordersApi.getAll()
+        ]);
+        setProducts(productsData);
+        setOrders(ordersData);
+      } catch (error) {
+        console.error('Failed to load data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  const totalProducts = products.length;
+  const totalOrders = orders.length;
+  const totalValue = products.reduce((sum, p) => sum + (p.price * p.quantity), 0);
+  const lowStockItems = products.filter(p => p.quantity < 5).length;
+
+  if (loading) {
+    return <div className="loading-screen">Loading dashboard...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -63,7 +89,7 @@ export default function Dashboard() {
           <div className="card-body">
             <h2 className="font-bold mb-4" style={{ fontSize: '1.125rem' }}>Recent Orders</h2>
             <div className="space-y-3">
-              {mockOrders.map(order => (
+              {orders.map(order => (
                 <div key={order.id} className="flex items-center justify-between p-3 rounded" style={{ background: 'var(--color-slate-50)' }}>
                   <div>
                     <p className="font-semibold">Order #{order.id}</p>
@@ -86,7 +112,7 @@ export default function Dashboard() {
           <div className="card-body">
             <h2 className="font-bold mb-4" style={{ fontSize: '1.125rem' }}>Top Products</h2>
             <div className="space-y-3">
-              {mockProducts.slice(0, 5).map(product => (
+              {products.slice(0, 5).map(product => (
                 <div key={product.id} className="flex items-center justify-between p-3 rounded" style={{ background: 'var(--color-slate-50)' }}>
                   <div>
                     <p className="font-semibold">{product.name}</p>

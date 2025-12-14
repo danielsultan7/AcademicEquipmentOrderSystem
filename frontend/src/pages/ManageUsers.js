@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
-import { mockUsers } from '../data/mockData';
+import React, { useState, useEffect } from 'react';
+import { usersApi } from '../services/api';
 import { Plus, Edit2, Trash2, X } from 'lucide-react';
 import { ROLE_ADMIN, ROLE_CUSTOMER, ROLE_PROCUREMENT_MANAGER } from '../constants/roles';
+import { useAuth } from '../components/AuthContext';
 
 export default function ManageUsers() {
-  const [users, setUsers] = useState(mockUsers);
+  const { refreshUsers } = useAuth();
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -12,6 +15,21 @@ export default function ManageUsers() {
     email: '',
     role: ROLE_CUSTOMER
   });
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const data = await usersApi.getAll();
+      setUsers(data);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const roles = [
     { value: ROLE_ADMIN, label: 'Administrator' },
@@ -35,42 +53,46 @@ export default function ManageUsers() {
     setShowForm(true);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
-      setUsers(users.filter(u => u.id !== id));
-      const mockIndex = mockUsers.findIndex(u => u.id === id);
-      if (mockIndex > -1) mockUsers.splice(mockIndex, 1);
+      try {
+        await usersApi.delete(id);
+        setUsers(users.filter(u => u.id !== id));
+        refreshUsers();
+      } catch (error) {
+        console.error('Failed to delete user:', error);
+        alert('Failed to delete user');
+      }
     }
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.username.trim() || !formData.email.trim()) {
       alert('Please fill in all fields');
       return;
     }
 
-    if (editingId) {
-      const updatedUsers = users.map(u =>
-        u.id === editingId ? { ...u, ...formData } : u
-      );
-      setUsers(updatedUsers);
-      const mockUser = mockUsers.find(u => u.id === editingId);
-      if (mockUser) {
-        Object.assign(mockUser, formData);
+    try {
+      if (editingId) {
+        const updated = await usersApi.update(editingId, formData);
+        setUsers(users.map(u => u.id === editingId ? updated : u));
+      } else {
+        const newUser = await usersApi.create(formData);
+        setUsers([...users, newUser]);
       }
-    } else {
-      const newUser = {
-        id: Math.max(...mockUsers.map(u => parseInt(u.id)), 0) + 1,
-        ...formData
-      };
-      setUsers([...users, newUser]);
-      mockUsers.push(newUser);
+      setShowForm(false);
+      setFormData({ username: '', email: '', role: ROLE_CUSTOMER });
+      refreshUsers();
+    } catch (error) {
+      console.error('Failed to save user:', error);
+      alert('Failed to save user');
     }
-
-    setShowForm(false);
-    setFormData({ username: '', email: '', role: ROLE_CUSTOMER });
   };
+
+  if (loading) {
+    return <div className="loading-screen">Loading users...</div>;
+  }
 
   return (
     <div className="space-y-6">

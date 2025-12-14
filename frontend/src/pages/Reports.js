@@ -1,30 +1,52 @@
-import React from 'react';
-import { mockOrders, mockProducts } from '../data/mockData';
+import React, { useState, useEffect } from 'react';
+import { ordersApi, productsApi } from '../services/api';
 import { formatCurrency } from '../utils';
 import { BarChart3, DollarSign, ShoppingCart, CheckCircle } from 'lucide-react';
 
 export default function Reports() {
+  const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [ordersData, productsData] = await Promise.all([
+          ordersApi.getAll(),
+          productsApi.getAll()
+        ]);
+        setOrders(ordersData);
+        setProducts(productsData);
+      } catch (error) {
+        console.error('Failed to load data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
   // Calculate order statistics
   const orderStats = {
-    total: mockOrders.length,
-    pending: mockOrders.filter(o => o.status === 'pending').length,
-    approved: mockOrders.filter(o => o.status === 'approved').length,
-    rejected: mockOrders.filter(o => o.status === 'rejected').length
+    total: orders.length,
+    pending: orders.filter(o => o.status === 'pending').length,
+    approved: orders.filter(o => o.status === 'approved').length,
+    rejected: orders.filter(o => o.status === 'rejected').length
   };
 
   // Calculate total revenue
-  const totalRevenue = mockOrders
+  const totalRevenue = orders
     .filter(o => o.status === 'approved')
     .reduce((sum, o) => sum + o.totalAmount, 0);
 
   // Calculate average order value
-  const avgOrderValue = mockOrders.length > 0
-    ? mockOrders.reduce((sum, o) => sum + o.totalAmount, 0) / mockOrders.length
+  const avgOrderValue = orders.length > 0
+    ? orders.reduce((sum, o) => sum + o.totalAmount, 0) / orders.length
     : 0;
 
   // Product popularity
   const productSales = {};
-  mockOrders.forEach(order => {
+  orders.forEach(order => {
     order.items.forEach(item => {
       productSales[item.productId] = (productSales[item.productId] || 0) + item.quantity;
     });
@@ -32,7 +54,7 @@ export default function Reports() {
 
   const topProducts = Object.entries(productSales)
     .map(([productId, quantity]) => {
-      const product = mockProducts.find(p => p.id === parseInt(productId));
+      const product = products.find(p => p.id === parseInt(productId));
       return { product, quantity };
     })
     .filter(item => item.product)
@@ -43,6 +65,10 @@ export default function Reports() {
   const getPercentage = (value) => {
     return orderStats.total > 0 ? Math.round((value / orderStats.total) * 100) : 0;
   };
+
+  if (loading) {
+    return <div className="loading-screen">Loading reports...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -214,7 +240,7 @@ export default function Reports() {
                 </tr>
               </thead>
               <tbody>
-                {mockProducts.map(product => (
+                {products.map(product => (
                   <tr key={product.id}>
                     <td className="font-semibold">{product.name}</td>
                     <td className="text-slate-600">{product.category}</td>

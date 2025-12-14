@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { mockProducts, mockOrders } from '../data/mockData';
+import React, { useState, useEffect } from 'react';
+import { productsApi, ordersApi } from '../services/api';
 import { formatCurrency } from '../utils';
 import { useAuth } from '../components/AuthContext';
 import { ROLE_CUSTOMER } from '../constants/roles';
@@ -7,9 +7,25 @@ import { ShoppingBag, X, Plus, Minus } from 'lucide-react';
 
 export default function Catalog() {
   const { currentUser } = useAuth();
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
   const canOrder = currentUser?.role === ROLE_CUSTOMER;
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const data = await productsApi.getAll();
+        setProducts(data);
+      } catch (error) {
+        console.error('Failed to load products:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadProducts();
+  }, []);
 
   const addToCart = (product) => {
     if (!canOrder) return;
@@ -33,7 +49,7 @@ export default function Catalog() {
     if (quantity <= 0) {
       removeFromCart(productId);
     } else {
-      const product = mockProducts.find(p => p.id === productId);
+      const product = products.find(p => p.id === productId);
       setCart(cart.map(item =>
         item.id === productId
           ? { ...item, quantity: Math.min(quantity, product.quantity) }
@@ -45,7 +61,7 @@ export default function Catalog() {
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (!canOrder) {
       alert('Only customers can place orders.');
       return;
@@ -55,29 +71,31 @@ export default function Catalog() {
       return;
     }
 
-    // Create order from cart items
-    const newOrder = {
-      id: Math.max(...mockOrders.map(o => parseInt(o.id)), 0) + 1,
-      userId: currentUser.id,
-      status: 'pending',
-      items: cart.map(item => ({
-        productId: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        unitPrice: item.price,
-        total: item.price * item.quantity
-      })),
-      totalAmount: cartTotal,
-      createdDate: new Date().toISOString(),
-      approvedDate: null,
-      rejectionReason: null
-    };
+    try {
+      const newOrder = {
+        userId: currentUser.id,
+        items: cart.map(item => ({
+          productId: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.price
+        })),
+        totalAmount: cartTotal
+      };
 
-    mockOrders.push(newOrder);
-    setCart([]);
-    setShowCart(false);
-    alert('Order placed successfully!');
+      await ordersApi.create(newOrder);
+      setCart([]);
+      setShowCart(false);
+      alert('Order placed successfully!');
+    } catch (error) {
+      console.error('Failed to create order:', error);
+      alert('Failed to place order. Please try again.');
+    }
   };
+
+  if (loading) {
+    return <div className="loading-screen">Loading products...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -164,7 +182,7 @@ export default function Catalog() {
       )}
 
       <div className="product-grid">
-        {mockProducts.map(product => (
+        {products.map(product => (
           <div key={product.id} className="card product-card">
             <div className="product-image">
               <ShoppingBag />
