@@ -1,9 +1,5 @@
 // Utility functions
 
-export const createPageUrl = (pageName) => {
-  return `/${pageName.toLowerCase()}`;
-};
-
 export const formatDate = (date) => {
   return new Date(date).toLocaleDateString('en-US', {
     year: 'numeric',

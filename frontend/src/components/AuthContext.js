@@ -1,11 +1,11 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { usersApi } from '../services/api';
+import { usersApi, authApi } from '../services/api';
 
 const AuthContext = createContext();
 
 // Key for storing user in localStorage
-// TODO: [SECURITY] Replace with JWT token storage in future
 const STORAGE_KEY = 'currentUser';
+const TOKEN_KEY = 'authToken';
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
@@ -13,22 +13,28 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     // Check for existing session in localStorage
-    // TODO: [SECURITY] Replace with JWT token validation in future
     const loadSession = () => {
       try {
         const storedUser = localStorage.getItem(STORAGE_KEY);
-        if (storedUser) {
+        const token = localStorage.getItem(TOKEN_KEY);
+        
+        // Only restore session if both user data and token exist
+        if (storedUser && token) {
           const user = JSON.parse(storedUser);
-          // Only store id, username, and role
           setCurrentUser({
             id: user.id,
             username: user.username,
             role: user.role
           });
+        } else {
+          // Clear any partial data
+          localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(TOKEN_KEY);
         }
       } catch (error) {
         console.error('Failed to load session:', error);
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(TOKEN_KEY);
       } finally {
         setIsLoading(false);
       }
@@ -45,14 +51,14 @@ export function AuthProvider({ children }) {
       role: user.role
     };
     setCurrentUser(safeUser);
-    // TODO: [SECURITY] Store JWT token instead of user data in future
     localStorage.setItem(STORAGE_KEY, JSON.stringify(safeUser));
+    // Note: Token is stored by authApi.login()
   };
 
-  const logout = () => {
+  const logout = async (reason = 'manual') => {
+    // Call API to log the logout action (this must happen BEFORE clearing token)
+    await authApi.logout(reason);
     setCurrentUser(null);
-    localStorage.removeItem(STORAGE_KEY);
-    // TODO: [SECURITY] Clear JWT token and call logout API in future
   };
 
   const refreshUsers = async () => {
