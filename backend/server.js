@@ -16,13 +16,25 @@ const productsRoutes = require('./routes/products.routes');
 const ordersRoutes = require('./routes/orders.routes');
 const logsRoutes = require('./routes/logs.routes');
 
+// Import rate limiter
+const { apiLimiter } = require('./middleware/rateLimiter');
+
+// Import anomaly processor for background analysis
+const { startProcessor: startAnomalyProcessor } = require('./services/anomalyProcessor');
+
 // Initialize Express app
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Security: Trust proxy for rate limiting behind reverse proxy
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10kb' })); // Limit body size for security
+
+// Apply general rate limiting to all API routes
+app.use('/api', apiLimiter);
 
 // Mount routes
 app.use('/api/auth', authRoutes);
@@ -69,6 +81,11 @@ app.use((req, res) => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Backend server running on http://localhost:${PORT}`);
+  
+  // Start anomaly detection background processor
+  startAnomalyProcessor();
+  console.log(`🤖 Anomaly detection processor started`);
+  
   console.log(`\nAvailable endpoints:`);
   console.log(`  POST   /api/auth/login`);
   console.log(`  GET    /api/health`);

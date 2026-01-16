@@ -3,6 +3,9 @@ const router = express.Router();
 const { supabase } = require('../utils/supabaseClient');
 const { logAuditAction, AUDIT_ACTIONS } = require('../utils/auditLogger');
 const { authenticate, requireAdmin } = require('../middleware/auth.middleware');
+const { hashPassword } = require('../utils/password');
+const { strictLimiter } = require('../middleware/rateLimiter');
+const { validateUserCreate, validateUserUpdate, validateIdParam } = require('../middleware/validators');
 
 // Helper: mask password in logs
 const sanitizeBody = (body) => {
@@ -51,27 +54,18 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 // POST /api/users - Create new user (admin only)
-router.post('/', authenticate, requireAdmin, async (req, res) => {
+router.post('/', authenticate, requireAdmin, strictLimiter, validateUserCreate, async (req, res) => {
   console.log(`[${req.method}] ${req.originalUrl}`);
   console.log('[POST /users] Body received:', sanitizeBody(req.body));
 
-  // Validate required fields
-  if (!req.body.username || !req.body.password) {
-    console.log('[POST /users] Validation failed: missing username or password');
-    return res.status(400).json({ error: 'Username and password are required' });
-  }
-
-  // Validate email is provided (required by database schema)
-  if (!req.body.email) {
-    console.log('[POST /users] Validation failed: missing email');
-    return res.status(400).json({ error: 'Email is required' });
-  }
+  // Hash the password before storing
+  const hashedPassword = await hashPassword(req.body.password);
 
   // Build insert object matching DB schema exactly
   const newUser = {
     username: req.body.username,
     email: req.body.email,
-    password_hash: req.body.password, // Maps frontend 'password' to DB 'password_hash'
+    password_hash: hashedPassword, // Now properly hashed
     role: req.body.role || 'customer'
   };
 
@@ -129,7 +123,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
 });
 
 // PUT /api/users/:id - Update user (requires authentication)
-router.put('/:id', authenticate, async (req, res) => {
+router.put('/:id', authenticate, validateUserUpdate, async (req, res) => {
   console.log(`[${req.method}] ${req.originalUrl}`);
   console.log('[PUT /users/:id] Body received:', sanitizeBody(req.body));
   
@@ -156,7 +150,11 @@ router.put('/:id', authenticate, async (req, res) => {
   if (req.body.username !== undefined) updates.username = req.body.username;
   if (req.body.email !== undefined) updates.email = req.body.email;
   if (req.body.role !== undefined) updates.role = req.body.role;
-  if (req.body.password) updates.password_hash = req.body.password; // Fixed: password -> password_hash
+  
+  // Hash password if being updated
+  if (req.body.password) {
+    updates.password_hash = await hashPassword(req.body.password);
+  }
 
   console.log('[PUT /users/:id] Updates to apply:', { ...updates, password_hash: updates.password_hash ? '***MASKED***' : undefined });
 

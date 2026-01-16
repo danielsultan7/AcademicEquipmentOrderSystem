@@ -237,11 +237,11 @@ async function runBusinessFlowTests() {
 
   await runner.run('C15: Update user role', async () => {
     const response = await api.put(`/users/${createdUserId}`, {
-      role: 'staff'
+      role: 'procurement_manager'
     }, { token: adminAuth.token });
     
     assert.equal(response.status, 200, 'Should update user');
-    assert.equal(response.data.role, 'staff', 'Role should be updated');
+    assert.equal(response.data.role, 'procurement_manager', 'Role should be updated');
   });
 
   await runner.run('C16: Update user email', async () => {
@@ -266,8 +266,8 @@ async function runBusinessFlowTests() {
     
     assert.equal(response.status, 200, 'Should delete user');
     
-    // Verify user is deleted
-    const getResponse = await api.get(`/users/${createdUserId}`);
+    // Verify user is deleted (need token since GET /users/:id requires auth)
+    const getResponse = await api.get(`/users/${createdUserId}`, { token: adminAuth.token });
     assert.equal(getResponse.status, 404, 'User should not be found');
   });
 

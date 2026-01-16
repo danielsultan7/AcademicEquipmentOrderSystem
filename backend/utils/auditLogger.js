@@ -1,5 +1,21 @@
 const { supabase } = require('./supabaseClient');
 
+// Lazy-load anomaly processor to avoid circular dependencies
+let queueLogForAnalysis = null;
+function getAnomalyQueue() {
+  if (!queueLogForAnalysis) {
+    try {
+      const processor = require('../services/anomalyProcessor');
+      queueLogForAnalysis = processor.queueLogForAnalysis;
+    } catch (err) {
+      // Anomaly service not available - fail silently
+      console.warn('[AuditLogger] Anomaly processor not available:', err.message);
+      queueLogForAnalysis = () => {}; // No-op function
+    }
+  }
+  return queueLogForAnalysis;
+}
+
 /**
  * AUDIT LOGGER - Production-Grade Audit Trail System
  * 
@@ -118,6 +134,21 @@ async function logAuditAction({ userId, actionType, description, metadata = null
     if (error) {
       console.error('[AuditLogger] Database error:', error.message);
       return { success: false, error: error.message };
+    }
+
+    // Queue for anomaly detection (non-blocking)
+    // Only new logs are analyzed - this happens asynchronously
+    try {
+      const queue = getAnomalyQueue();
+      queue({
+        id: data.id,
+        action: actionType,
+        description: description.trim(),
+        metadata: metadata
+      });
+    } catch (queueError) {
+      // Fail silently - anomaly detection should never block logging
+      console.warn('[AuditLogger] Failed to queue for anomaly detection:', queueError.message);
     }
 
     return { success: true, logId: data?.id };

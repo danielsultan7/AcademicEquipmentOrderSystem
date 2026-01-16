@@ -4,9 +4,12 @@ const { supabase } = require('../utils/supabaseClient');
 const { logAuditAction, AUDIT_ACTIONS, SYSTEM_USER_ID, getClientIp } = require('../utils/auditLogger');
 const { generateToken } = require('../utils/jwt');
 const { authenticate } = require('../middleware/auth.middleware');
+const { verifyPassword } = require('../utils/password');
+const { loginLimiter } = require('../middleware/rateLimiter');
+const { validateLogin } = require('../middleware/validators');
 
 // POST /api/auth/login - Authenticate user
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, validateLogin, async (req, res) => {
   console.log(`[${req.method}] ${req.originalUrl}`);
   
   const { username, password } = req.body;
@@ -52,10 +55,10 @@ router.post('/login', async (req, res) => {
     return res.status(500).json({ error: 'Login failed' });
   }
 
-  // TODO: [SECURITY] Replace plaintext comparison with bcrypt
-  // Future upgrade: const isMatch = await bcrypt.compare(password, user.password_hash);
+  // Secure password verification using bcrypt
+  // Also supports legacy plaintext passwords during migration
   const storedPassword = user.password_hash || '';
-  const isPasswordValid = password === storedPassword;
+  const isPasswordValid = await verifyPassword(password, storedPassword);
 
   if (!isPasswordValid) {
     console.log('[POST /auth/login] Invalid password for:', username);

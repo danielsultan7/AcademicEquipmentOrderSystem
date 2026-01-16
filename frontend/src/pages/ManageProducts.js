@@ -52,13 +52,13 @@ export default function ManageProducts() {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
+    if (window.confirm('Are you sure you want to delete this product? It will no longer appear in the catalog but order history will be preserved.')) {
       try {
         await productsApi.delete(id);
         setProducts(products.filter(p => p.id !== id));
       } catch (error) {
         console.error('Failed to delete product:', error);
-        alert('Failed to delete product');
+        alert('Failed to delete product: ' + error.message);
       }
     }
   };

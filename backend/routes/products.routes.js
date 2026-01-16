@@ -4,13 +4,21 @@ const { supabase } = require('../utils/supabaseClient');
 const { logAuditAction, AUDIT_ACTIONS } = require('../utils/auditLogger');
 const { authenticate, requireAdmin } = require('../middleware/auth.middleware');
 
-// GET /api/products - Get all products
+// GET /api/products - Get all products (excludes soft-deleted by default)
 router.get('/', async (req, res) => {
   console.log(`[${req.method}] ${req.originalUrl}`);
 
-  const { data: products, error } = await supabase
-    .from('products')
-    .select('*');
+  // Query parameter to include deleted products (admin use)
+  const includeDeleted = req.query.includeDeleted === 'true';
+
+  let query = supabase.from('products').select('*');
+  
+  // By default, exclude soft-deleted products
+  if (!includeDeleted) {
+    query = query.is('deleted_at', null);
+  }
+
+  const { data: products, error } = await query;
 
   if (error) {
     console.error('[GET /products] Error:', error.message, error.code);
@@ -29,6 +37,7 @@ router.get('/:id', async (req, res) => {
     .from('products')
     .select('*')
     .eq('id', parseInt(req.params.id))
+    .is('deleted_at', null)  // Only return non-deleted products
     .single();
 
   if (error) {
@@ -53,12 +62,21 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Product name is required' });
   }
 
+  const price = parseFloat(req.body.price) || 0;
   const quantity = parseInt(req.body.quantity) || 0;
+
+  // Validate price and quantity are not negative
+  if (price < 0) {
+    return res.status(400).json({ error: 'Price cannot be negative' });
+  }
+  if (quantity < 0) {
+    return res.status(400).json({ error: 'Quantity cannot be negative' });
+  }
 
   const newProduct = {
     name: req.body.name,
     description: req.body.description || '',
-    price: parseFloat(req.body.price) || 0,
+    price: price,
     quantity: quantity,
     category: req.body.category || 'Uncategorized',
     status: quantity > 0 ? 'available' : 'unavailable'
@@ -116,11 +134,12 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
 
   const productId = parseInt(req.params.id);
 
-  // Check if product exists
+  // Check if product exists and is not deleted
   const { data: existingProduct, error: findError } = await supabase
     .from('products')
     .select('*')
     .eq('id', productId)
+    .is('deleted_at', null)
     .single();
 
   if (findError) {
@@ -129,6 +148,14 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
     return res.status(500).json({ error: findError.message });
+  }
+
+  // Validate price and quantity if provided
+  if (req.body.price !== undefined && parseFloat(req.body.price) < 0) {
+    return res.status(400).json({ error: 'Price cannot be negative' });
+  }
+  if (req.body.quantity !== undefined && parseInt(req.body.quantity) < 0) {
+    return res.status(400).json({ error: 'Quantity cannot be negative' });
   }
 
   // Build update object with only provided fields
@@ -194,17 +221,18 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   res.json(updatedProduct);
 });
 
-// DELETE /api/products/:id - Delete product (admin only)
+// DELETE /api/products/:id - Soft delete product (admin only)
 router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
   console.log(`[${req.method}] ${req.originalUrl}`);
 
   const productId = parseInt(req.params.id);
 
-  // First get the product to return it after deletion
+  // First get the product (only if not already deleted)
   const { data: productToDelete, error: findError } = await supabase
     .from('products')
     .select('*')
     .eq('id', productId)
+    .is('deleted_at', null)
     .single();
 
   if (findError) {
@@ -215,17 +243,23 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
     return res.status(500).json({ error: findError.message });
   }
 
-  const { error: deleteError } = await supabase
+  // Soft delete: set deleted_at timestamp instead of actually deleting
+  const { data: deletedProduct, error: deleteError } = await supabase
     .from('products')
-    .delete()
-    .eq('id', productId);
+    .update({ 
+      deleted_at: new Date().toISOString(),
+      status: 'deleted'
+    })
+    .eq('id', productId)
+    .select('*')
+    .single();
 
   if (deleteError) {
-    console.error('[DELETE /products/:id] Delete error:', deleteError.message);
+    console.error('[DELETE /products/:id] Soft delete error:', deleteError.message);
     return res.status(500).json({ error: deleteError.message });
   }
 
-  console.log('[DELETE /products/:id] Deleted product:', productToDelete.id, productToDelete.name);
+  console.log('[DELETE /products/:id] Soft deleted product:', productToDelete.id, productToDelete.name);
 
   // Audit: Log product deletion
   await logAuditAction({
@@ -234,11 +268,15 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
     description: `Deleted product: ${productToDelete.name}`,
     metadata: {
       product_id: productToDelete.id,
-      name: productToDelete.name
+      name: productToDelete.name,
+      deleted_at: deletedProduct.deleted_at
     }
   });
 
-  res.json(productToDelete);
+  res.json({ 
+    message: 'Product deleted successfully',
+    product: productToDelete 
+  });
 });
 
 module.exports = router;

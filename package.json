@@ -3,12 +3,13 @@
   "version": "1.0.0",
   "description": "Academic Equipment Order System - Full Stack",
   "scripts": {
-    "start": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "start": "concurrently -n backend,frontend,ai -c blue,green,magenta \"npm run backend\" \"npm run frontend\" \"npm run ai-service\"",
     "backend": "cd backend && npm start",
     "frontend": "cd frontend && npm start",
-    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend\"",
+    "ai-service": "cd ai-service && . venv/bin/activate && python app.py",
+    "dev": "concurrently -n backend,frontend,ai -c blue,green,magenta \"npm run backend:dev\" \"npm run frontend\" \"npm run ai-service\"",
     "backend:dev": "cd backend && npm run dev",
-    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install && cd ../ai-service && python3 -m venv venv && . venv/bin/activate && pip install -r requirements.txt"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

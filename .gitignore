@@ -1,5 +1,57 @@
-node_modules
-dist
-build
+# Node.js
+node_modules/
+dist/
+build/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+*.tgz
+
+# Environment variables
 .env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+
+# Python
+**/venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Coverage & Testing
+coverage/
+.nyc_output/
+
+# Build artifacts
+*.tsbuildinfo
+
+# Package lock files (optional - some teams ignore these)
+# package-lock.json
+# yarn.lock

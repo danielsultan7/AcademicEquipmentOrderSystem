@@ -1,54 +1,57 @@
 {
   "title": "Academic Equipment Order System - System Audit Report",
-  "timestamp": "2026-01-03T14:11:14.853Z",
-  "executionTime": "66.08s",
+  "timestamp": "2026-01-09T10:03:04.335Z",
+  "executionTime": "52.64s",
   "summary": {
     "totalTests": 116,
-    "passed": 106,
-    "failed": 10,
+    "passed": 80,
+    "failed": 36,
     "skipped": 0
   },
   "suites": [
     {
       "suite": "Authentication & Session",
-      "passed": 14,
-      "failed": 0,
+      "passed": 10,
+      "failed": 4,
       "skipped": 0,
       "tests": [
         {
           "name": "A1: Successful login returns JWT token",
           "status": "PASSED",
-          "duration": 453
+          "duration": 476
         },
         {
           "name": "A2: Successful login generates audit log",
-          "status": "PASSED",
-          "duration": 426
+          "status": "FAILED",
+          "error": "Should have LOGIN log Expected 0 > 0",
+          "duration": 204
         },
         {
           "name": "A3: Failed login (wrong password) is rejected",
           "status": "PASSED",
-          "duration": 441
+          "duration": 384
         },
         {
           "name": "A4: Failed login logs with SYSTEM_USER_ID",
-          "status": "PASSED",
-          "duration": 424
+          "status": "FAILED",
+          "error": "Should have failed login log Expected value to exist, got undefined",
+          "duration": 212
         },
         {
           "name": "A5: Failed login (user not found) is rejected",
           "status": "PASSED",
-          "duration": 441
+          "duration": 383
         },
         {
           "name": "A6: User not found logs with SYSTEM_USER_ID",
-          "status": "PASSED",
-          "duration": 440
+          "status": "FAILED",
+          "error": "Should have user_not_found log Expected value to exist, got undefined",
+          "duration": 213
         },
         {
           "name": "A7: Missing credentials are rejected",
           "status": "PASSED",
-          "duration": 4
+          "duration": 5
         },
         {
           "name": "A8: Token required for protected routes",
@@ -58,27 +61,28 @@
         {
           "name": "A9: Invalid token is rejected",
           "status": "PASSED",
-          "duration": 7
+          "duration": 6
         },
         {
           "name": "A10: Malformed token is rejected",
           "status": "PASSED",
-          "duration": 6
+          "duration": 4
         },
         {
           "name": "A11: Valid token allows protected route access",
           "status": "PASSED",
-          "duration": 438
+          "duration": 400
         },
         {
           "name": "A12: Logout endpoint works with valid token",
           "status": "PASSED",
-          "duration": 656
+          "duration": 583
         },
         {
           "name": "A13: Logout generates audit log",
-          "status": "PASSED",
-          "duration": 448
+          "status": "FAILED",
+          "error": "Should have LOGOUT log Expected 0 > 0",
+          "duration": 207
         },
         {
           "name": "A14: Logout without token fails",
@@ -89,396 +93,414 @@
     },
     {
       "suite": "Authorization & Access Control",
-      "passed": 14,
-      "failed": 1,
+      "passed": 15,
+      "failed": 0,
       "skipped": 0,
       "tests": [
         {
           "name": "B0: Setup - Login all test users",
           "status": "PASSED",
-          "duration": 1301
+          "duration": 1172
         },
         {
           "name": "B1: Any authenticated user can GET /products",
           "status": "PASSED",
-          "duration": 206
+          "duration": 192
         },
         {
           "name": "B2: Unauthenticated user can GET /products",
           "status": "PASSED",
-          "duration": 211
+          "duration": 189
         },
         {
           "name": "B3: Any authenticated user can GET /orders",
           "status": "PASSED",
-          "duration": 418
+          "duration": 385
         },
         {
           "name": "B4: Unauthenticated user can GET /orders",
           "status": "PASSED",
-          "duration": 415
+          "duration": 389
         },
         {
           "name": "B5: Authenticated user can create product",
           "status": "PASSED",
-          "duration": 414
+          "duration": 381
         },
         {
           "name": "B6: Unauthenticated user cannot create product",
           "status": "PASSED",
-          "duration": 2
+          "duration": 4
         },
         {
           "name": "B7: Authenticated user can create order",
           "status": "PASSED",
-          "duration": 1263
+          "duration": 1192
         },
         {
           "name": "B8: Unauthenticated user cannot create order",
           "status": "PASSED",
-          "duration": 1
+          "duration": 4
         },
         {
           "name": "B9: Authenticated user can approve order",
           "status": "PASSED",
-          "duration": 824
+          "duration": 776
         },
         {
           "name": "B10: Unauthenticated user cannot approve order",
           "status": "PASSED",
-          "duration": 3
+          "duration": 1
         },
         {
           "name": "B11: Authenticated user can create user",
           "status": "PASSED",
-          "duration": 409
+          "duration": 387
         },
         {
           "name": "B12: Unauthenticated user cannot create user",
           "status": "PASSED",
-          "duration": 4
+          "duration": 3
         },
         {
           "name": "B13: Document role restrictions (observation)",
           "status": "PASSED",
-          "duration": 407
+          "duration": 4
         },
         {
           "name": "B14: Access denial does not modify data",
-          "status": "FAILED",
-          "error": "Unauthorized product should not exist Expected undefined, got [object Object]",
-          "duration": 433
+          "status": "PASSED",
+          "duration": 390
         }
       ]
     },
     {
       "suite": "Core Business Flows",
-      "passed": 18,
-      "failed": 3,
+      "passed": 21,
+      "failed": 0,
       "skipped": 0,
       "tests": [
         {
           "name": "C0: Setup - Login test users",
           "status": "PASSED",
-          "duration": 844
+          "duration": 778
         },
         {
           "name": "C1: Create product with all fields",
           "status": "PASSED",
-          "duration": 415
+          "duration": 396
         },
         {
           "name": "C2: Product status is \"available\" when quantity > 0",
           "status": "PASSED",
-          "duration": 206
+          "duration": 191
         },
         {
           "name": "C3: Update product price",
           "status": "PASSED",
-          "duration": 611
+          "duration": 578
         },
         {
           "name": "C4: Update product quantity to 0 sets status unavailable",
           "status": "PASSED",
-          "duration": 614
+          "duration": 580
         },
         {
           "name": "C5: Update product quantity to positive sets status available",
           "status": "PASSED",
-          "duration": 716
+          "duration": 572
         },
         {
           "name": "C6: Create order with single item",
           "status": "PASSED",
-          "duration": 1085
+          "duration": 1051
         },
         {
           "name": "C7: Order creation reduces product stock",
           "status": "PASSED",
-          "duration": 214
+          "duration": 190
         },
         {
           "name": "C8: Cannot order more than available stock",
           "status": "PASSED",
-          "duration": 204
+          "duration": 196
         },
         {
           "name": "C9: Get order by ID includes items",
           "status": "PASSED",
-          "duration": 405
+          "duration": 377
         },
         {
           "name": "C10: Approve order",
           "status": "PASSED",
-          "duration": 396
+          "duration": 380
         },
         {
           "name": "C11: Create order for rejection test",
           "status": "PASSED",
-          "duration": 964
+          "duration": 960
         },
         {
           "name": "C12: Reject order restores stock",
           "status": "PASSED",
-          "duration": 1561
+          "duration": 1531
         },
         {
           "name": "C13: Create order with multiple items",
           "status": "PASSED",
-          "duration": 232
+          "duration": 1529
         },
         {
           "name": "C14: Create user",
           "status": "PASSED",
-          "duration": 401
+          "duration": 383
         },
         {
           "name": "C15: Update user role",
-          "status": "FAILED",
-          "error": "Should update user Expected 200, got 500",
-          "duration": 397
+          "status": "PASSED",
+          "duration": 575
         },
         {
           "name": "C16: Update user email",
           "status": "PASSED",
-          "duration": 597
+          "duration": 608
         },
         {
           "name": "C17: Get user by ID",
           "status": "PASSED",
-          "duration": 192
+          "duration": 202
         },
         {
           "name": "C18: Delete user",
           "status": "PASSED",
-          "duration": 783
+          "duration": 751
         },
         {
           "name": "C19: Delete product",
-          "status": "FAILED",
-          "error": "Should delete product Expected 200, got 500",
-          "duration": 396
+          "status": "PASSED",
+          "duration": 566
         },
         {
           "name": "C20: Deleted product returns 404",
-          "status": "FAILED",
-          "error": "Should return 404 Expected 404, got 200",
-          "duration": 210
+          "status": "PASSED",
+          "duration": 185
         }
       ]
     },
     {
       "suite": "Audit Logging",
-      "passed": 25,
-      "failed": 4,
+      "passed": 4,
+      "failed": 25,
       "skipped": 0,
       "tests": [
         {
           "name": "D0: Setup - Login and get baseline log count",
           "status": "PASSED",
-          "duration": 1324
+          "duration": 1062
         },
         {
           "name": "D1: No existing logs have null user_id",
           "status": "PASSED",
-          "duration": 212
+          "duration": 1
         },
         {
           "name": "D2: LOGIN success creates exactly one log",
-          "status": "PASSED",
-          "duration": 1127
+          "status": "FAILED",
+          "error": "Should create exactly 1 LOGIN log Expected 1, got 0",
+          "duration": 680
         },
         {
           "name": "D3: LOGIN success log has correct user_id",
           "status": "FAILED",
-          "error": "Should have metadata Expected value to exist, got null",
-          "duration": 203
+          "error": "Should have staff login log Expected 0 > 0",
+          "duration": 1
         },
         {
           "name": "D4: LOGIN failure log has SYSTEM_USER_ID",
-          "status": "PASSED",
-          "duration": 928
+          "status": "FAILED",
+          "error": "Should have failed login with SYSTEM_USER_ID Expected 0 > 0",
+          "duration": 695
         },
         {
           "name": "D5: LOGIN metadata structure is correct",
-          "status": "PASSED",
-          "duration": 208
+          "status": "FAILED",
+          "error": "Should have LOGIN logs Expected 0 > 0",
+          "duration": 3
         },
         {
           "name": "D6: LOGOUT creates audit log",
-          "status": "PASSED",
-          "duration": 1349
+          "status": "FAILED",
+          "error": "Should create exactly 1 LOGOUT log Expected 1, got 0",
+          "duration": 877
         },
         {
           "name": "D7: LOGOUT log has correct metadata",
-          "status": "PASSED",
-          "duration": 208
+          "status": "FAILED",
+          "error": "Should have LOGOUT logs Expected 0 > 0",
+          "duration": 2
         },
         {
           "name": "D8: CREATE_PRODUCT creates audit log",
-          "status": "PASSED",
-          "duration": 1123
+          "status": "FAILED",
+          "error": "Should create exactly 1 CREATE_PRODUCT log Expected 1, got 0",
+          "duration": 692
         },
         {
           "name": "D9: CREATE_PRODUCT log has correct user_id",
-          "status": "PASSED",
-          "duration": 211
+          "status": "FAILED",
+          "error": "Should have CREATE_PRODUCT log with admin user_id Expected 0 > 0",
+          "duration": 1
         },
         {
           "name": "D10: CREATE_PRODUCT metadata structure",
-          "status": "PASSED",
-          "duration": 207
+          "status": "FAILED",
+          "error": "Cannot read properties of undefined (reading 'metadata')",
+          "duration": 1
         },
         {
           "name": "D11: UPDATE_PRODUCT creates audit log",
-          "status": "PASSED",
-          "duration": 1361
+          "status": "FAILED",
+          "error": "Should create exactly 1 UPDATE_PRODUCT log Expected 1, got 0",
+          "duration": 871
         },
         {
           "name": "D12: UPDATE_PRODUCT metadata has field changes",
-          "status": "PASSED",
-          "duration": 208
+          "status": "FAILED",
+          "error": "Cannot read properties of undefined (reading 'metadata')",
+          "duration": 2
         },
         {
           "name": "D13: CREATE_ORDER creates audit log",
-          "status": "PASSED",
-          "duration": 1821
+          "status": "FAILED",
+          "error": "Should create exactly 1 CREATE_ORDER log Expected 1, got 0",
+          "duration": 1306
         },
         {
           "name": "D14: CREATE_ORDER log has customer user_id",
-          "status": "PASSED",
-          "duration": 216
+          "status": "FAILED",
+          "error": "Should have CREATE_ORDER with customer user_id Expected 0 > 0",
+          "duration": 1
         },
         {
           "name": "D15: CREATE_ORDER metadata structure",
-          "status": "PASSED",
-          "duration": 211
+          "status": "FAILED",
+          "error": "Cannot read properties of undefined (reading 'metadata')",
+          "duration": 2
         },
         {
           "name": "D16: APPROVE_ORDER creates audit log",
-          "status": "PASSED",
-          "duration": 1157
+          "status": "FAILED",
+          "error": "Should create exactly 1 APPROVE_ORDER log Expected 1, got 0",
+          "duration": 696
         },
         {
           "name": "D17: APPROVE_ORDER metadata structure",
-          "status": "PASSED",
-          "duration": 214
+          "status": "FAILED",
+          "error": "Cannot read properties of undefined (reading 'metadata')",
+          "duration": 2
         },
         {
           "name": "D18: Setup - Create order for rejection test",
           "status": "PASSED",
-          "duration": 1054
+          "duration": 956
         },
         {
           "name": "D19: REJECT_ORDER creates audit log",
-          "status": "PASSED",
-          "duration": 2004
+          "status": "FAILED",
+          "error": "Should create exactly 1 REJECT_ORDER log Expected 1, got 0",
+          "duration": 396
         },
         {
           "name": "D20: REJECT_ORDER metadata has reason",
-          "status": "PASSED",
-          "duration": 206
+          "status": "FAILED",
+          "error": "Cannot read properties of undefined (reading 'metadata')",
+          "duration": 1
         },
         {
           "name": "D21: CREATE_USER creates audit log",
-          "status": "PASSED",
-          "duration": 1182
+          "status": "FAILED",
+          "error": "Should create exactly 1 CREATE_USER log Expected 1, got 0",
+          "duration": 689
         },
         {
           "name": "D22: CREATE_USER metadata structure",
-          "status": "PASSED",
-          "duration": 233
+          "status": "FAILED",
+          "error": "Cannot read properties of undefined (reading 'metadata')",
+          "duration": 2
         },
         {
           "name": "D23: UPDATE_USER creates audit log",
           "status": "FAILED",
           "error": "Should create exactly 1 UPDATE_USER log Expected 1, got 0",
-          "duration": 1150
+          "duration": 691
         },
         {
           "name": "D24: DELETE_USER creates audit log",
-          "status": "PASSED",
-          "duration": 1428
+          "status": "FAILED",
+          "error": "Should create exactly 1 DELETE_USER log Expected 1, got 0",
+          "duration": 880
         },
         {
           "name": "D25: DELETE_USER metadata has deleted info",
-          "status": "PASSED",
-          "duration": 203
+          "status": "FAILED",
+          "error": "Cannot read properties of undefined (reading 'metadata')",
+          "duration": 1
         },
         {
           "name": "D26: DELETE_PRODUCT creates audit log",
           "status": "FAILED",
           "error": "Should create exactly 1 DELETE_PRODUCT log Expected 1, got 0",
-          "duration": 1120
+          "duration": 885
         },
         {
           "name": "D27: Final check - No null user_ids after all tests",
           "status": "PASSED",
-          "duration": 199
+          "duration": 1
         },
         {
           "name": "D28: All action types have at least one log",
           "status": "FAILED",
-          "error": "All action types should have logs Expected 0, got 1",
-          "duration": 204
+          "error": "All action types should have logs Expected 0, got 11",
+          "duration": 2
         }
       ]
     },
     {
       "suite": "Error Handling & Edge Cases",
-      "passed": 21,
-      "failed": 1,
+      "passed": 20,
+      "failed": 2,
       "skipped": 0,
       "tests": [
         {
           "name": "E0: Setup - Login admin",
           "status": "PASSED",
-          "duration": 413
+          "duration": 383
         },
         {
           "name": "E1: Missing required fields returns 400",
           "status": "PASSED",
-          "duration": 4
+          "duration": 3
         },
         {
           "name": "E2: Invalid product ID returns 404",
           "status": "PASSED",
-          "duration": 206
+          "duration": 193
         },
         {
           "name": "E3: Invalid order ID returns 404",
           "status": "PASSED",
-          "duration": 202
+          "duration": 195
         },
         {
           "name": "E4: Invalid user ID returns 404",
-          "status": "PASSED",
-          "duration": 199
+          "status": "FAILED",
+          "error": "Should return 404 Expected 404, got 401",
+          "duration": 2
         },
         {
           "name": "E5: Non-numeric ID is handled",
           "status": "PASSED",
-          "duration": 217
+          "duration": 195
         },
         {
           "name": "E6: Empty order items rejected",
@@ -488,62 +510,62 @@
         {
           "name": "E7: Order with non-existent product rejected",
           "status": "PASSED",
-          "duration": 234
+          "duration": 196
         },
         {
           "name": "E8: Duplicate username rejected",
           "status": "PASSED",
-          "duration": 244
+          "duration": 197
         },
         {
           "name": "E9: Duplicate email rejected",
           "status": "PASSED",
-          "duration": 689
+          "duration": 579
         },
         {
           "name": "E10: Failed product creation does not create log",
           "status": "PASSED",
-          "duration": 653
+          "duration": 209
         },
         {
           "name": "E11: Failed order creation does not create log",
           "status": "PASSED",
-          "duration": 623
+          "duration": 214
         },
         {
           "name": "E12: Failed user creation does not create log",
           "status": "PASSED",
-          "duration": 613
+          "duration": 215
         },
         {
           "name": "E13: Malformed JSON is handled",
           "status": "PASSED",
-          "duration": 10
+          "duration": 7
         },
         {
           "name": "E14: Extra fields are ignored",
           "status": "PASSED",
-          "duration": 434
+          "duration": 392
         },
         {
           "name": "E15: Update non-existent product returns 404",
           "status": "PASSED",
-          "duration": 209
+          "duration": 296
         },
         {
           "name": "E16: Delete non-existent product returns 404",
           "status": "PASSED",
-          "duration": 210
+          "duration": 188
         },
         {
           "name": "E17: Approve non-existent order returns 404",
           "status": "PASSED",
-          "duration": 195
+          "duration": 190
         },
         {
           "name": "E18: Server responds after error",
           "status": "PASSED",
-          "duration": 381
+          "duration": 389
         },
         {
           "name": "E19: 404 endpoint handled",
@@ -553,115 +575,138 @@
         {
           "name": "E20: Negative quantity handled",
           "status": "PASSED",
-          "duration": 390
+          "duration": 383
         },
         {
           "name": "E21: Negative price handled",
           "status": "FAILED",
           "error": "Should either create or reject Expected true, got false",
-          "duration": 197
+          "duration": 194
         }
       ]
     },
     {
       "suite": "Data Consistency & Integrity",
-      "passed": 14,
-      "failed": 1,
+      "passed": 10,
+      "failed": 5,
       "skipped": 0,
       "tests": [
         {
           "name": "F0: Setup - Login and create test product",
           "status": "PASSED",
-          "duration": 1143
+          "duration": 1136
         },
         {
           "name": "F1: Order reduces inventory correctly",
           "status": "PASSED",
-          "duration": -23
+          "duration": 1393
         },
         {
           "name": "F2: Multiple orders track cumulative inventory",
           "status": "PASSED",
-          "duration": 2329
+          "duration": 2300
         },
         {
           "name": "F3: Rejected order restores correct quantity",
           "status": "PASSED",
-          "duration": 2825
+          "duration": 2708
         },
         {
           "name": "F4: Approved order does not restore stock",
           "status": "PASSED",
-          "duration": 1860
+          "duration": 1712
         },
         {
           "name": "F5: Order items stored correctly",
           "status": "PASSED",
-          "duration": 1470
+          "duration": 1362
         },
         {
           "name": "F6: Order totalAmount matches calculation",
           "status": "PASSED",
-          "duration": 1048
+          "duration": 968
         },
         {
           "name": "F7: Order status transitions correctly",
           "status": "PASSED",
-          "duration": 1539
+          "duration": 1345
         },
         {
           "name": "F8: Logs reference valid user IDs",
-          "status": "PASSED",
-          "duration": 418
+          "status": "FAILED",
+          "error": "usersResponse.data.map is not a function",
+          "duration": 5
         },
         {
           "name": "F9: Product creation log references existing product",
-          "status": "PASSED",
-          "duration": 1034
+          "status": "FAILED",
+          "error": "Should have create log for product Expected value to exist, got undefined",
+          "duration": 584
         },
         {
           "name": "F10: Order creation log references existing order",
-          "status": "PASSED",
-          "duration": 1838
+          "status": "FAILED",
+          "error": "Should have create log for order Expected value to exist, got undefined",
+          "duration": 1158
         },
         {
           "name": "F11: Product status reflects quantity",
           "status": "PASSED",
-          "duration": 210
+          "duration": 195
         },
         {
           "name": "F12: All users have required fields",
-          "status": "PASSED",
-          "duration": 206
+          "status": "FAILED",
+          "error": "users.filter is not a function",
+          "duration": 2
         },
         {
           "name": "F13: All user roles are valid",
           "status": "FAILED",
-          "error": "All roles should be valid Expected 0, got 2",
-          "duration": 203
+          "error": "users.filter is not a function",
+          "duration": 4
         },
         {
           "name": "F14: Cleanup - Delete test product",
           "status": "PASSED",
-          "duration": 401
+          "duration": 584
         }
       ]
     }
   ],
   "assessment": {
-    "readinessLevel": "MVP with Caveats",
+    "readinessLevel": "Prototype",
     "readinessNotes": [
-      "Multiple issues require attention",
-      "Not recommended for production without fixes"
+      "Significant issues detected",
+      "Requires substantial fixes before deployment"
     ],
     "findings": {
       "securityConcerns": [],
       "missingValidations": [],
       "brokenFeatures": [
+        "Audit: A2: Successful login generates audit log",
+        "Audit: A4: Failed login logs with SYSTEM_USER_ID",
+        "Audit: A6: User not found logs with SYSTEM_USER_ID",
+        "Audit: A13: Logout generates audit log",
+        "Audit: D2: LOGIN success creates exactly one log",
         "Audit: D3: LOGIN success log has correct user_id",
+        "Audit: D4: LOGIN failure log has SYSTEM_USER_ID",
+        "Audit: D6: LOGOUT creates audit log",
+        "Audit: D7: LOGOUT log has correct metadata",
+        "Audit: D8: CREATE_PRODUCT creates audit log",
+        "Audit: D9: CREATE_PRODUCT log has correct user_id",
+        "Audit: D11: UPDATE_PRODUCT creates audit log",
+        "Audit: D13: CREATE_ORDER creates audit log",
+        "Audit: D14: CREATE_ORDER log has customer user_id",
+        "Audit: D16: APPROVE_ORDER creates audit log",
+        "Audit: D19: REJECT_ORDER creates audit log",
+        "Audit: D21: CREATE_USER creates audit log",
         "Audit: D23: UPDATE_USER creates audit log",
+        "Audit: D24: DELETE_USER creates audit log",
         "Audit: D26: DELETE_PRODUCT creates audit log",
-        "Audit: D28: All action types have at least one log"
+        "Audit: D28: All action types have at least one log",
+        "Audit: F9: Product creation log references existing product",
+        "Audit: F10: Order creation log references existing order"
       ],
       "recommendations": [
         "Review all failed tests and fix issues",
