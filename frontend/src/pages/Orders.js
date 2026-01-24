@@ -6,20 +6,52 @@ import { useAuth } from '../components/AuthContext';
 import { ROLE_ADMIN, ROLE_CUSTOMER, ROLE_PROCUREMENT_MANAGER } from '../constants/roles';
 
 export default function Orders() {
-  const { currentUser } = useAuth();
+  const { currentUser, isLoading: authLoading } = useAuth();
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Don't fetch until auth is ready
+    if (authLoading) {
+      console.log('[Orders] Waiting for auth to load...');
+      return;
+    }
+    
+    if (!currentUser) {
+      console.log('[Orders] No user logged in');
+      setLoading(false);
+      return;
+    }
+
     const loadData = async () => {
       try {
-        const [ordersData, usersData, productsData] = await Promise.all([
+        console.log('[Orders] Loading data for user:', {
+          id: currentUser.id,
+          role: currentUser.role,
+          token: localStorage.getItem('authToken') ? 'present' : 'MISSING'
+        });
+        
+        // Customers don't have access to users list, so fetch conditionally
+        const isAdmin = currentUser.role === ROLE_ADMIN || currentUser.role === ROLE_PROCUREMENT_MANAGER;
+        
+        const [ordersData, productsData] = await Promise.all([
           ordersApi.getAll(),
-          usersApi.getAll(),
           productsApi.getAll()
         ]);
+        
+        // Only fetch users if admin/manager (they need it to display usernames)
+        let usersData = [];
+        if (isAdmin) {
+          try {
+            usersData = await usersApi.getAll();
+          } catch (err) {
+            console.warn('[Orders] Could not fetch users:', err.message);
+          }
+        }
+        
+        console.log('[Orders] Received orders:', ordersData.length, ordersData.map(o => ({ id: o.id, userId: o.userId, status: o.status })));
         setOrders(ordersData);
         setUsers(usersData);
         setProducts(productsData);
@@ -30,7 +62,7 @@ export default function Orders() {
       }
     };
     loadData();
-  }, []);
+  }, [currentUser, authLoading]);
 
   const getUserName = (userId) => {
     return users.find(u => u.id === userId)?.username || 'Unknown';
@@ -42,7 +74,15 @@ export default function Orders() {
 
   const visibleOrders = useMemo(() => {
     if (currentUser?.role === ROLE_CUSTOMER) {
-      return orders.filter(o => o.userId === currentUser.id);
+      // Filter orders by customer ID - normalize both to numbers for comparison
+      const filtered = orders.filter(o => Number(o.userId) === Number(currentUser.id));
+      console.log('[Orders] Customer filter:', {
+        customerId: currentUser.id,
+        totalOrders: orders.length,
+        matchingOrders: filtered.length,
+        allOrderUserIds: orders.map(o => o.userId)
+      });
+      return filtered;
     }
     return orders;
   }, [orders, currentUser]);

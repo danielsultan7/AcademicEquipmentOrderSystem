@@ -1,4 +1,12 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+// =============================================================================
+// API Configuration for HTTPS
+// =============================================================================
+// Using HTTPS for secure communication with self-signed certificate.
+// In development, the browser will show a security warning - this is expected.
+// Make sure to visit https://localhost:3001 first and accept the certificate.
+// =============================================================================
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://localhost:3001/api';
 
 // Token storage key
 const TOKEN_KEY = 'authToken';
@@ -37,7 +45,13 @@ async function fetchApi(endpoint, options = {}) {
     ...options.headers,
   };
 
-  const response = await fetch(url, { ...headers, ...options, headers });
+  // Debug: Log API calls with auth status
+  console.log(`[API] ${options.method || 'GET'} ${endpoint}`, { 
+    hasToken: !!token,
+    tokenPreview: token ? `${token.substring(0, 20)}...` : null
+  });
+
+  const response = await fetch(url, { ...options, headers });
   
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -138,7 +152,11 @@ export const productsApi = {
 
 // ============ Orders API ============
 export const ordersApi = {
-  getAll: () => fetchApi('/orders'),
+  getAll: async () => {
+    const data = await fetchApi('/orders');
+    console.log('[ordersApi.getAll] Raw response:', data);
+    return data;
+  },
   getById: (id) => fetchApi(`/orders/${id}`),
   create: (orderData) => fetchApi('/orders', {
     method: 'POST',

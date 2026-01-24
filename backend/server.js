@@ -2,9 +2,40 @@
 require('dotenv').config();
 
 // ------------------------------------------------------------
+// HTTPS Setup for Local Development
+// ------------------------------------------------------------
+// This server runs ONLY over HTTPS using a self-signed certificate.
+// For local development without a domain or external CA.
+// ------------------------------------------------------------
+
+const https = require('https');
+const fs = require('fs');
+const path = require('path');
 
 const express = require('express');
 const cors = require('cors');
+
+// =============================================================================
+// SSL Certificate Configuration
+// =============================================================================
+// Load self-signed certificate for HTTPS
+// Generate certificates by running: cd certs && ./generate-certs.sh
+
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH || path.join(__dirname, '../certs/server.key');
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH || path.join(__dirname, '../certs/server.crt');
+
+// Validate certificate files exist
+if (!fs.existsSync(SSL_KEY_PATH) || !fs.existsSync(SSL_CERT_PATH)) {
+  console.error('❌ SSL certificate files not found!');
+  console.error('   Please generate certificates first:');
+  console.error('   cd certs && chmod +x generate-certs.sh && ./generate-certs.sh');
+  process.exit(1);
+}
+
+const sslOptions = {
+  key: fs.readFileSync(SSL_KEY_PATH),
+  cert: fs.readFileSync(SSL_CERT_PATH)
+};
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
@@ -78,15 +109,16 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Backend server running on http://localhost:${PORT}`);
+// Start HTTPS server (no HTTP - HTTPS only)
+https.createServer(sslOptions, app).listen(PORT, () => {
+  console.log(`🔒 Backend server running on https://localhost:${PORT}`);
+  console.log(`   Using self-signed certificate (development mode)`);
   
   // Start anomaly detection background processor
   startAnomalyProcessor();
   console.log(`🤖 Anomaly detection processor started`);
   
-  console.log(`\nAvailable endpoints:`);
+  console.log(`\nAvailable endpoints (HTTPS only):`);
   console.log(`  POST   /api/auth/login`);
   console.log(`  GET    /api/health`);
   console.log(`  GET    /api/users`);

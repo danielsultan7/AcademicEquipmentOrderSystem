@@ -10,6 +10,7 @@
  * 2. FAULT-TOLERANT: Service unavailability doesn't break audit logging
  * 3. TIMEOUT PROTECTION: Prevents hanging if AI service is slow
  * 4. SIMPLE INTERFACE: Just pass log data, get anomaly score back
+ * 5. HTTPS: Uses HTTPS for secure communication with self-signed certificate
  * 
  * Usage:
  * ------
@@ -24,9 +25,52 @@
  * }
  */
 
+const https = require('https');
+
 // Configuration
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5000';
+// NOTE: Changed to HTTPS for secure communication
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'https://localhost:5000';
 const REQUEST_TIMEOUT_MS = 5000; // 5 seconds
+
+// =============================================================================
+// HTTPS Agent for Self-Signed Certificate
+// =============================================================================
+// Since we're using a self-signed certificate for local development,
+// we need to disable certificate verification for service-to-service calls.
+// 
+// ⚠️ WARNING: This is for DEVELOPMENT ONLY. In production, use proper CA certs.
+// =============================================================================
+
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false  // Accept self-signed certificates (dev only!)
+});
+
+// Import undici Agent for fetch with self-signed certificate support
+// undici is the HTTP client that powers Node.js native fetch
+const { Agent } = require('undici');
+
+// Create a reusable agent that accepts self-signed certificates
+// This is cached to avoid creating new agents for every request
+const unsafeAgent = new Agent({
+  connect: {
+    rejectUnauthorized: false  // Accept self-signed certificates (dev only!)
+  }
+});
+
+/**
+ * Custom fetch wrapper that uses our HTTPS agent for self-signed certs
+ * @param {string} url - The URL to fetch
+ * @param {object} options - Fetch options
+ * @returns {Promise<Response>}
+ */
+async function secureFetch(url, options = {}) {
+  // Use the built-in fetch with our custom undici agent for HTTPS
+  // This allows us to make HTTPS requests to servers with self-signed certificates
+  return fetch(url, {
+    ...options,
+    dispatcher: unsafeAgent
+  });
+}
 
 /**
  * Check if the AI service is available and healthy
@@ -37,7 +81,7 @@ async function isServiceAvailable() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-    const response = await fetch(`${AI_SERVICE_URL}/health`, {
+    const response = await secureFetch(`${AI_SERVICE_URL}/health`, {
       method: 'GET',
       signal: controller.signal
     });
@@ -77,7 +121,7 @@ async function analyzeLog(logId, logText) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    const response = await fetch(`${AI_SERVICE_URL}/analyze-log`, {
+    const response = await secureFetch(`${AI_SERVICE_URL}/analyze-log`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -129,7 +173,7 @@ async function analyzeBatch(logs) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS * 2);
 
-    const response = await fetch(`${AI_SERVICE_URL}/analyze-batch`, {
+    const response = await secureFetch(`${AI_SERVICE_URL}/analyze-batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

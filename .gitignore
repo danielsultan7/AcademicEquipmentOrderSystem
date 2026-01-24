@@ -52,6 +52,13 @@ coverage/
 # Build artifacts
 *.tsbuildinfo
 
+# SSL Certificates (contain private keys - DO NOT COMMIT)
+certs/*.key
+certs/*.crt
+certs/*.pem
+*.key
+*.crt
+
 # Package lock files (optional - some teams ignore these)
 # package-lock.json
 # yarn.lock

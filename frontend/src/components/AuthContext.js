@@ -21,8 +21,9 @@ export function AuthProvider({ children }) {
         // Only restore session if both user data and token exist
         if (storedUser && token) {
           const user = JSON.parse(storedUser);
+          // Ensure ID is a number for consistent comparison with backend data
           setCurrentUser({
-            id: user.id,
+            id: Number(user.id),
             username: user.username,
             role: user.role
           });
@@ -45,8 +46,9 @@ export function AuthProvider({ children }) {
 
   const login = (user) => {
     // Store only id, username, and role
+    // Ensure ID is a number for consistent comparison
     const safeUser = {
-      id: user.id,
+      id: Number(user.id),
       username: user.username,
       role: user.role
     };

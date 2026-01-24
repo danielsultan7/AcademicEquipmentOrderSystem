@@ -363,12 +363,35 @@ async def analyze_batch(requests: list[AnalyzeLogRequest]):
 
 if __name__ == "__main__":
     import uvicorn
+    import os
     
-    # Run the server
-    # In production, use: uvicorn app:app --host 0.0.0.0 --port 5000
+    # ==========================================================================
+    # HTTPS Configuration for Local Development
+    # ==========================================================================
+    # This service runs ONLY over HTTPS using a self-signed certificate.
+    # Generate certificates by running: cd certs && ./generate-certs.sh
+    # ==========================================================================
+    
+    # SSL certificate paths (relative to project root)
+    SSL_KEY_PATH = os.getenv("SSL_KEY_PATH", "../certs/server.key")
+    SSL_CERT_PATH = os.getenv("SSL_CERT_PATH", "../certs/server.crt")
+    
+    # Verify certificate files exist
+    if not os.path.exists(SSL_KEY_PATH) or not os.path.exists(SSL_CERT_PATH):
+        logger.error("❌ SSL certificate files not found!")
+        logger.error("   Please generate certificates first:")
+        logger.error("   cd certs && chmod +x generate-certs.sh && ./generate-certs.sh")
+        exit(1)
+    
+    logger.info("🔒 Starting HTTPS server with self-signed certificate (development mode)")
+    
+    # Run the HTTPS server
+    # In production, use: uvicorn app:app --host 0.0.0.0 --port 5000 --ssl-keyfile=... --ssl-certfile=...
     uvicorn.run(
         app,
         host="0.0.0.0",
         port=5000,
-        log_level="info"
+        log_level="info",
+        ssl_keyfile=SSL_KEY_PATH,
+        ssl_certfile=SSL_CERT_PATH
     )

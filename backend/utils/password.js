@@ -57,7 +57,6 @@ function isHashed(password) {
 
 module.exports = {
   hashPassword,
-  verifyPassword,
-  isHashed,
-  SALT_ROUNDS
+  verifyPassword
+  // isHashed and SALT_ROUNDS are internal-only
 };

@@ -7,18 +7,49 @@ const { authenticate, optionalAuth, requireRole } = require('../middleware/auth.
 // GET /api/orders - Get all orders (optionalAuth: filter by user if customer)
 router.get('/', optionalAuth, async (req, res) => {
   try {
-    // 1. Fetch all orders
-    const { data: orders, error: ordersError } = await supabase
+    // Debug: Log authentication status
+    console.log('[GET /orders] Auth status:', {
+      hasUser: !!req.user,
+      userId: req.user?.id,
+      userRole: req.user?.role,
+      authHeader: req.headers.authorization ? 'present' : 'missing'
+    });
+
+    // 1. Build query - filter by user_id if authenticated customer
+    let query = supabase
       .from('orders')
       .select('*')
       .order('created_at', { ascending: false });
+    
+    // If user is authenticated and is a customer, only return their orders
+    if (req.user && req.user.role === 'customer') {
+      console.log(`[GET /orders] Filtering orders for customer ID: ${req.user.id}`);
+      query = query.eq('user_id', req.user.id);
+    }
+    
+    const { data: orders, error: ordersError } = await query;
+
+    // Debug: Log query results
+    console.log('[GET /orders] Query result:', {
+      orderCount: orders?.length || 0,
+      error: ordersError?.message || null,
+      orderIds: orders?.map(o => o.id) || [],
+      orderStatuses: orders?.map(o => ({ id: o.id, status: o.status, user_id: o.user_id })) || []
+    });
 
     if (ordersError) {
       console.error('[GET /orders] Error:', ordersError.message);
       return res.status(500).json({ error: ordersError.message });
     }
 
-    // 2. Fetch all order items with product info
+    // If no orders, return empty array immediately
+    if (!orders || orders.length === 0) {
+      console.log('[GET /orders] No orders found');
+      return res.json([]);
+    }
+
+    // 2. Fetch order items only for the relevant orders (more efficient)
+    const orderIds = orders.map(o => o.id);
     const { data: orderItems, error: itemsError } = await supabase
       .from('order_items')
       .select(`
@@ -28,7 +59,8 @@ router.get('/', optionalAuth, async (req, res) => {
         quantity,
         unit_price,
         products ( name )
-      `);
+      `)
+      .in('order_id', orderIds);
 
     if (itemsError) {
       console.error('[GET /orders] Items error:', itemsError.message);

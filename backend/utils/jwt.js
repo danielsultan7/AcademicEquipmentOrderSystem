@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 
 // JWT configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const JWT_EXPIRES_IN = '24h';
+const JWT_EXPIRES_IN = '1h';
 
 /**
  * Generate a JWT token for a user
@@ -31,4 +31,5 @@ function verifyToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
 
-module.exports = { generateToken, verifyToken, JWT_SECRET };
+module.exports = { generateToken, verifyToken };
+// JWT_SECRET is internal-only for security

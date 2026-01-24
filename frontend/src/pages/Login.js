@@ -41,8 +41,9 @@ export default function Login() {
       const response = await authApi.login(username, password);
       
       // Store only id, username, and role in currentUser
+      // Ensure ID is stored as a number for consistent comparison
       const currentUser = {
-        id: response.user.id,
+        id: Number(response.user.id),
         username: response.user.username,
         role: response.user.role
       };

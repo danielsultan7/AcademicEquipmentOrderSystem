@@ -139,10 +139,11 @@ const validateIdParam = [
 module.exports = {
   validateUserCreate,
   validateUserUpdate,
-  validateProductCreate,
-  validateProductUpdate,
-  validateOrderCreate,
   validateLogin,
   validateIdParam,
-  handleValidationErrors
+  handleValidationErrors,
+  // Available but currently unused validators (kept for future use):
+  // validateProductCreate,
+  // validateProductUpdate,
+  // validateOrderCreate
 };
