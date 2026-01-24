@@ -143,68 +143,6 @@ AcademicEquipmentOrderSystem/
 
 The system includes an AI service that analyzes audit logs for anomalous behavior:
 
-- Uses DistilBERT (HuggingFace Transformers)
-- Sentiment analysis as anomaly proxy
-- Non-blocking background processing
-- Configurable threshold (default: 0.7)
 
-## 📊 API Endpoints
 
-### Authentication
-- `POST /api/auth/login` - User login
-- `POST /api/auth/logout` - User logout
 
-### Users (Admin only)
-- `GET /api/users` - List all users
-- `POST /api/users` - Create user
-- `PUT /api/users/:id` - Update user
-- `DELETE /api/users/:id` - Delete user
-
-### Products
-- `GET /api/products` - List products
-- `POST /api/products` - Create product (admin)
-- `PUT /api/products/:id` - Update product (admin)
-- `DELETE /api/products/:id` - Soft delete (admin)
-
-### Orders
-- `GET /api/orders` - List orders (filtered by role)
-- `POST /api/orders` - Create order
-- `PUT /api/orders/:id/approve` - Approve order (manager+)
-- `PUT /api/orders/:id/reject` - Reject order (manager+)
-
-### Logs (Admin only)
-- `GET /api/logs` - View audit logs with anomaly scores
-
-## 🧪 Testing
-
-### Backend Audit Tests
-```bash
-cd backend
-node __audit_tests__/auditLogger.test.js    # Unit tests
-node __audit_tests__/integration.test.js    # Integration tests
-```
-
-### System Audit Tests
-```bash
-cd backend/__system_audit_tests__
-node run-all.js                              # All suites
-node run-all.js A                            # Authentication only
-```
-
-### AI Service Tests
-```bash
-cd ai-service
-python test_service.py
-```
-
-## 📝 License
-
-MIT License - See LICENSE file for details.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests
-5. Submit a pull request
