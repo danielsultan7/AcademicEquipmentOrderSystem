@@ -5,6 +5,7 @@ const { logAuditAction, AUDIT_ACTIONS } = require('../utils/auditLogger');
 const { authenticate, requireAdmin } = require('../middleware/auth.middleware');
 const { hashPassword } = require('../utils/password');
 const { strictLimiter } = require('../middleware/rateLimiter');
+// NOTE: validateIdParam is available for future use on routes that need ID validation
 const { validateUserCreate, validateUserUpdate, validateIdParam } = require('../middleware/validators');
 
 // Helper: mask password in logs
@@ -115,7 +116,8 @@ router.post('/', authenticate, requireAdmin, strictLimiter, validateUserCreate, 
     metadata: {
       created_user_id: createdUser.id,
       username: createdUser.username,
-      role: createdUser.role
+      role: createdUser.role,
+      user_role: req.user.role
     }
   });
 
@@ -189,7 +191,8 @@ router.put('/:id', authenticate, validateUserUpdate, async (req, res) => {
     description: `Updated user: ${updatedUser.username}`,
     metadata: {
       target_user_id: userId,
-      fields_changed: Object.keys(updates).filter(k => k !== 'password_hash')
+      fields_changed: Object.keys(updates).filter(k => k !== 'password_hash'),
+      user_role: req.user.role
     }
   });
 
@@ -237,7 +240,8 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
     metadata: {
       deleted_user_id: userToDelete.id,
       deleted_username: userToDelete.username,
-      deleted_role: userToDelete.role
+      deleted_role: userToDelete.role,
+      user_role: req.user.role
     }
   });
 

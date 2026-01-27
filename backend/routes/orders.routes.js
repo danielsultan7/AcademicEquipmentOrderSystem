@@ -277,7 +277,8 @@ router.post('/', authenticate, async (req, res) => {
       metadata: {
         order_id: newOrder.id,
         total_amount: totalAmount,
-        items_count: orderItems.length
+        items_count: orderItems.length,
+        user_role: req.user.role
       }
     });
 
@@ -358,7 +359,8 @@ router.put('/:id/approve', authenticate, requireRole('admin', 'procurement_manag
       metadata: {
         order_id: orderId,
         previous_status: 'pending',
-        new_status: 'approved'
+        new_status: 'approved',
+        user_role: req.user.role
       }
     });
 
@@ -451,7 +453,8 @@ router.put('/:id/reject', authenticate, requireRole('admin', 'procurement_manage
         order_id: orderId,
         previous_status: order.status,
         new_status: 'rejected',
-        reason: req.body.reason || null
+        reason: req.body.reason || null,
+        user_role: req.user.role
       }
     });
 

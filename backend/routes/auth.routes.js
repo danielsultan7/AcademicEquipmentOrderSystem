@@ -103,7 +103,8 @@ router.post('/login', loginLimiter, validateLogin, async (req, res) => {
     metadata: {
       status: 'success',
       reason: null,
-      ip: getClientIp(req)
+      ip: getClientIp(req),
+      user_role: user.role
     }
   });
   
@@ -134,7 +135,8 @@ router.post('/logout', authenticate, async (req, res) => {
     description: `User ${req.user.username} logged out`,
     metadata: {
       reason: logoutReason,
-      ip: getClientIp(req)
+      ip: getClientIp(req),
+      user_role: req.user.role
     }
   });
   

@@ -1,16 +1,16 @@
 # AI Anomaly Detection Service
 
-A Python microservice that analyzes audit log text for anomalies using HuggingFace transformers.
+A Python microservice that analyzes audit log text for security anomalies using the **Qwen 2.5-1.5B-Instruct** LLM from HuggingFace.
 
 ## Architecture
 
 ```
-┌─────────────────────┐         HTTP POST          ┌─────────────────────┐
+┌─────────────────────┐         HTTPS POST         ┌─────────────────────┐
 │   Node.js Backend   │  ───────────────────────▶  │   Python AI Service │
 │                     │                            │                     │
-│  - Writes audit log │  POST /analyze-log         │  - Loads model once │
-│  - Calls AI service │  {log_id, log_text}        │  - Runs inference   │
-│  - Stores result    │                            │  - Returns score    │
+│  - Writes audit log │  POST /analyze-log         │  - Loads Qwen LLM   │
+│  - Calls AI service │  {log_id, log_text,        │  - Classifies logs  │
+│  - Stores result    │   timestamp}               │  - Returns score    │
 │                     │  ◀───────────────────────  │                     │
 │                     │  {anomaly_score, ...}      │                     │
 └─────────────────────┘                            └─────────────────────┘
@@ -27,13 +27,16 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Run the service
+# 3. Ensure SSL certificates exist
+cd ../certs && ./generate-certs.sh && cd ../ai-service
+
+# 4. Run the service
 python app.py
-# Or with uvicorn directly:
-uvicorn app:app --host 0.0.0.0 --port 5000 --reload
 ```
 
-The service will be available at `http://localhost:5000`
+The service will be available at `https://localhost:5000`
+
+> ⚠️ **First run downloads the model (~3GB)** - this may take several minutes depending on your internet connection.
 
 ## API Endpoints
 
@@ -46,8 +49,7 @@ Response:
 {
   "status": "healthy",
   "model_loaded": true,
-  "model_name": "distilbert-base-uncased-finetuned-sst-2-english",
-  "threshold": 0.7
+  "model_name": "Qwen/Qwen2.5-1.5B-Instruct"
 }
 ```
 
@@ -58,16 +60,17 @@ Content-Type: application/json
 
 {
   "log_id": 123,
-  "log_text": "Failed login attempt for username: admin"
+  "log_text": "Failed login attempt for username: admin",
+  "timestamp": "2026-01-26T02:30:00Z"
 }
 ```
 Response:
 ```json
 {
   "log_id": 123,
-  "anomaly_score": 0.9234,
+  "anomaly_score": 1.0,
   "is_anomaly": true,
-  "model_name": "distilbert-base-uncased-finetuned-sst-2-english"
+  "model_name": "Qwen/Qwen2.5-1.5B-Instruct"
 }
 ```
 
@@ -77,104 +80,86 @@ POST /analyze-batch
 Content-Type: application/json
 
 [
-  {"log_id": 1, "log_text": "User logged in successfully"},
-  {"log_id": 2, "log_text": "Failed login attempt"},
-  {"log_id": 3, "log_text": "Order rejected by manager"}
+  {"log_id": 1, "log_text": "User logged in successfully", "timestamp": "2026-01-26T10:00:00Z"},
+  {"log_id": 2, "log_text": "Failed login attempt", "timestamp": "2026-01-26T03:00:00Z"},
+  {"log_id": 3, "log_text": "Admin deleted user from system", "timestamp": "2026-01-26T04:00:00Z"}
 ]
-```
-
-## Configuration
-
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `ANOMALY_THRESHOLD` | `0.7` | Score threshold for flagging anomalies |
-
-Example:
-```bash
-ANOMALY_THRESHOLD=0.8 python app.py
 ```
 
 ## How It Works
 
-### Sentiment → Anomaly Mapping
+### LLM-Based Classification
 
-The service uses sentiment analysis as a proxy for anomaly detection:
+The service uses the Qwen 2.5-1.5B-Instruct model to directly classify logs:
 
-1. **Input**: Audit log text (e.g., "Failed login attempt for user admin")
-2. **Model**: DistilBERT fine-tuned on sentiment data
-3. **Output**: Sentiment label (POSITIVE/NEGATIVE) + confidence score
+1. **Input**: Audit log text + optional timestamp
+2. **Time Tag**: Timestamp is converted to `[nighttime]` (00:00-06:00) or `[daytime]`
+3. **LLM Prompt**: System prompt with security rules + log text
+4. **Output**: "NORMAL" or "ANOMALOUS" classification
 
-**Mapping Logic**:
-```python
-if sentiment == "NEGATIVE":
-    anomaly_score = confidence  # High confidence negative = high anomaly
-else:
-    anomaly_score = 1 - confidence  # High confidence positive = low anomaly
-```
+### Detection Rules
 
-### Example Mappings
+| Category | Pattern Examples |
+|----------|-----------------|
+| **SQL Injection** | SELECT, DROP, DELETE, INSERT, UPDATE, --, OR 1=1, UNION |
+| **XSS Attacks** | \<script\>, onerror=, javascript:, \<img, onclick= |
+| **Auth Failures** | "failed login", "invalid password", "authentication rejected" |
+| **Privilege Escalation** | "unauthorized", "access denied", "permission denied" |
+| **Nighttime Admin** | Any log with "admin" during 00:00-06:00 → ANOMALOUS |
+| **Suspicious Tools** | sqlmap, path traversal (../), burp, nikto |
 
-| Log Text | Sentiment | Confidence | Anomaly Score | Is Anomaly |
-|----------|-----------|------------|---------------|------------|
-| "Failed login attempt" | NEGATIVE | 0.95 | 0.95 | ✅ Yes |
-| "User logged in successfully" | POSITIVE | 0.92 | 0.08 | ❌ No |
-| "Order rejected" | NEGATIVE | 0.88 | 0.88 | ✅ Yes |
-| "Order approved" | POSITIVE | 0.85 | 0.15 | ❌ No |
-| "Permission denied" | NEGATIVE | 0.91 | 0.91 | ✅ Yes |
+### Example Classifications
+
+| Log Text | Time | Classification | Reason |
+|----------|------|----------------|--------|
+| "User john logged in successfully" | 14:00 | NORMAL | Standard login |
+| "Admin deleted user from system" | 03:00 | ANOMALOUS | Nighttime admin activity |
+| "User input: ' OR '1'='1' --" | 10:00 | ANOMALOUS | SQL injection pattern |
+| "Order #12345 created" | 11:30 | NORMAL | Standard operation |
+| "Comment: \<script\>alert('XSS')\</script\>" | 15:00 | ANOMALOUS | XSS attack pattern |
 
 ## Model Information
 
-- **Model**: `distilbert-base-uncased-finetuned-sst-2-english`
-- **Parameters**: 66 million
-- **Size**: ~250MB
-- **Inference Time**: 30-100ms per log (CPU)
-- **Training Data**: Stanford Sentiment Treebank (SST-2)
+- **Model**: `Qwen/Qwen2.5-1.5B-Instruct`
+- **Parameters**: 1.5 billion
+- **Size**: ~3GB download
+- **Inference Time**: ~5-15 seconds per log (depends on hardware)
+- **Requirements**: 4GB+ RAM recommended
 
 ## API Documentation
 
 FastAPI provides automatic interactive documentation:
 
-- **Swagger UI**: http://localhost:5000/docs
-- **ReDoc**: http://localhost:5000/redoc
+- **Swagger UI**: https://localhost:5000/docs
+- **ReDoc**: https://localhost:5000/redoc
 
-## Production Deployment
+## Environment Variables
 
-### Using Docker
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SSL_KEY_PATH` | `../certs/server.key` | Path to SSL private key |
+| `SSL_CERT_PATH` | `../certs/server.crt` | Path to SSL certificate |
 
-```dockerfile
-FROM python:3.11-slim
+## Testing
 
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+```bash
+# Ensure AI service is running first
+python app.py
 
-# Pre-download model during build
-RUN python -c "from transformers import pipeline; pipeline('text-classification', model='distilbert-base-uncased-finetuned-sst-2-english')"
-
-COPY . .
-EXPOSE 5000
-
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"]
+# In another terminal
+python test_service.py
 ```
 
-### Using systemd
+The test script covers:
+- SQL injection detection
+- XSS attack detection
+- Authentication failure detection
+- Nighttime admin activity detection
+- Privilege escalation detection
+- Normal operation verification
 
-```ini
-[Unit]
-Description=AI Anomaly Detection Service
-After=network.target
-
-[Service]
-User=www-data
-WorkingDirectory=/opt/ai-service
-Environment="ANOMALY_THRESHOLD=0.7"
-ExecStart=/opt/ai-service/venv/bin/uvicorn app:app --host 0.0.0.0 --port 5000
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-## Integration with Node.js
+## Integration with Node.js Backend
 
 See `backend/services/anomalyClient.js` for the Node.js client implementation.
+
+The backend calls this service asynchronously via a background processor (`anomalyProcessor.js`) to avoid blocking the main request flow.

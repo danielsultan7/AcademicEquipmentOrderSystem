@@ -1,6 +1,6 @@
-# EduEquip - Academic Equipment Order System
+# EduEquip Frontend
 
-A simple, clean React application for managing academic equipment orders.
+React single-page application (SPA) for the Academic Equipment Order System.
 
 ## Project Structure
 
@@ -10,24 +10,26 @@ frontend/
 │   └── index.html          # Main HTML file
 ├── src/
 │   ├── components/         # Reusable components
-│   │   ├── AuthContext.js  # Authentication context
-│   │   ├── Layout.js       # Main layout with sidebar
-│   │   └── RoleGuard.js    # Route protection by role
-│   ├── data/               # Data models and mock data
-│   │   ├── entities.js     # Entity class definitions
-│   │   └── mockData.js     # Mock data for demo
+│   │   ├── AuthContext.js  # Authentication context and state management
+│   │   ├── Layout.js       # Main layout with sidebar navigation
+│   │   └── RoleGuard.js    # Route protection by user role
+│   ├── constants/
+│   │   └── roles.js        # Role constant definitions
 │   ├── pages/              # Page components
-│   │   ├── Catalog.js      # Product catalog with cart
-│   │   ├── Dashboard.js    # Overview dashboard
-│   │   ├── Logs.js         # System logs (admin only)
-│   │   ├── ManageProducts.js # Product management (admin)
-│   │   ├── ManageUsers.js  # User management (admin)
-│   │   ├── Orders.js       # Order listing
+│   │   ├── Catalog.js      # Product catalog with shopping cart
+│   │   ├── Dashboard.js    # Overview dashboard (admin/manager)
+│   │   ├── Login.js        # Login page
+│   │   ├── Logs.js         # System audit logs (admin only)
+│   │   ├── ManageProducts.js # Product CRUD (admin only)
+│   │   ├── ManageUsers.js  # User CRUD (admin only)
+│   │   ├── Orders.js       # Order listing and management
 │   │   └── Reports.js      # Analytics reports
+│   ├── services/
+│   │   └── api.js          # API client with JWT authentication
 │   ├── styles/
 │   │   └── global.css      # All styles in one CSS file
 │   ├── utils/
-│   │   └── index.js        # Utility functions
+│   │   └── index.js        # Utility functions (formatDate, formatCurrency)
 │   ├── App.js              # Main app with routing
 │   └── index.js            # Entry point
 └── package.json            # Dependencies
@@ -38,45 +40,104 @@ frontend/
 - **React 18** - UI library
 - **React Router v6** - Client-side routing
 - **Lucide React** - Icons
-- **Plain CSS** - No CSS frameworks, just clean CSS
+- **Plain CSS** - Custom styling without frameworks
 
 ## Getting Started
 
-1. Navigate to the frontend folder:
-   ```bash
-   cd frontend
-   ```
+### Prerequisites
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+- Node.js 18+
+- Backend API running at https://localhost:3001
+- SSL certificates generated (shared with backend)
 
-3. Start the development server:
-   ```bash
-   npm start
-   ```
+### Installation
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+```bash
+cd frontend
+npm install
+```
+
+### Running
+
+```bash
+npm start
+```
+
+Opens at https://localhost:3000
+
+> ⚠️ **Important:** Before the frontend can communicate with the backend, you must accept the backend's self-signed certificate. Visit https://localhost:3001/api/health first and accept the warning.
 
 ## Features
 
-### User Roles
-- **Admin** - Full system access
-- **Procurement Manager** - Order management and reports
-- **Customer** - Browse catalog and place orders
+### User Roles & Access
+
+| Role | Accessible Pages |
+|------|-----------------|
+| **Admin** | All pages |
+| **Procurement Manager** | Dashboard, Catalog, Orders, Reports |
+| **Customer** | Catalog, Orders (own orders only) |
 
 ### Pages
-- **Dashboard** - Overview with statistics
-- **Catalog** - Browse and order equipment
-- **Orders** - View and manage orders
-- **Reports** - Analytics and insights (admin/manager)
-- **Manage Users** - User CRUD operations (admin)
-- **Manage Products** - Product CRUD operations (admin)
-- **System Logs** - Activity logs (admin)
 
-### Demo Mode
-Switch between user roles using the dropdown in the sidebar to test different access levels.
+| Page | URL | Description |
+|------|-----|-------------|
+| Login | `/login` | Authentication page |
+| Dashboard | `/dashboard` | Statistics and recent activity |
+| Catalog | `/catalog` | Browse products, add to cart, place orders |
+| Orders | `/orders` | View orders, approve/reject (manager+) |
+| Reports | `/reports` | Analytics and insights |
+| Manage Users | `/users` | User CRUD operations (admin) |
+| Manage Products | `/products` | Product CRUD operations (admin) |
+| System Logs | `/logs` | Audit logs with anomaly scores (admin) |
+
+## Authentication Flow
+
+1. User enters credentials on Login page
+2. Frontend calls `POST /api/auth/login`
+3. Backend returns JWT token + user info
+4. Token stored in `localStorage`
+5. Token sent in `Authorization: Bearer <token>` header for all API calls
+6. Token expires after 1 hour → automatic redirect to login
+
+## Environment Variables
+
+Create a `.env` file (optional):
+
+```env
+REACT_APP_API_URL=https://localhost:3001/api
+```
+
+If not set, defaults to `https://localhost:3001/api`.
+
+## API Integration
+
+The `services/api.js` module provides typed API clients:
+
+```javascript
+import { authApi, usersApi, productsApi, ordersApi, logsApi } from './services/api';
+
+// Login
+const { user, token } = await authApi.login(username, password);
+
+// Fetch data
+const users = await usersApi.getAll();
+const products = await productsApi.getAll();
+const orders = await ordersApi.getAll();
+const logs = await logsApi.getAll();
+
+// CRUD operations
+await productsApi.create({ name, price, quantity });
+await ordersApi.approve(orderId);
+await usersApi.delete(userId);
+```
+
+## Building for Production
+
+```bash
+npm run build
+```
+
+Creates optimized build in `build/` directory.
 
 ## Available Scripts
 

@@ -120,7 +120,8 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
       product_id: createdProduct.id,
       name: createdProduct.name,
       initial_quantity: createdProduct.quantity,
-      price: createdProduct.price
+      price: createdProduct.price,
+      user_role: req.user.role
     }
   });
 
@@ -214,7 +215,8 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
       product_id: productId,
       fields_changed: fieldsChanged,
       old_values: oldValues,
-      new_values: newValues
+      new_values: newValues,
+      user_role: req.user.role
     }
   });
 
@@ -269,7 +271,8 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
     metadata: {
       product_id: productToDelete.id,
       name: productToDelete.name,
-      deleted_at: deletedProduct.deleted_at
+      deleted_at: deletedProduct.deleted_at,
+      user_role: req.user.role
     }
   });
 

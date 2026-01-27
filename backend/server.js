@@ -60,8 +60,24 @@ const PORT = process.env.PORT || 3001;
 // Security: Trust proxy for rate limiting behind reverse proxy
 app.set('trust proxy', 1);
 
+// =============================================================================
+// CORS Configuration for HTTPS
+// =============================================================================
+// Allow the HTTPS frontend to communicate with the HTTPS backend.
+// Both services use the same self-signed certificate for local development.
+// =============================================================================
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://localhost:3000';
+
+const corsOptions = {
+  origin: [FRONTEND_URL, 'https://127.0.0.1:3000'],
+  credentials: true,  // Allow cookies/auth headers
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10kb' })); // Limit body size for security
 
 // Apply general rate limiting to all API routes

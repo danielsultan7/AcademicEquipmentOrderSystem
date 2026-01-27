@@ -30,7 +30,7 @@ const https = require('https');
 // Configuration
 // NOTE: Changed to HTTPS for secure communication
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'https://localhost:5000';
-const REQUEST_TIMEOUT_MS = 5000; // 5 seconds
+const REQUEST_TIMEOUT_MS = 30000; // 30 seconds (LLM inference takes ~10s)
 
 // =============================================================================
 // HTTPS Agent for Self-Signed Certificate
@@ -104,32 +104,40 @@ async function isServiceAvailable() {
  * 
  * @param {number} logId - The ID of the audit log entry
  * @param {string} logText - The text content to analyze
+ * @param {string} [timestamp] - ISO timestamp of the log entry (for nighttime detection)
  * @returns {Promise<Object|null>} Anomaly result or null on failure
  * 
  * @example
- * const result = await analyzeLog(123, "Failed login attempt for user admin");
+ * const result = await analyzeLog(123, "Admin deleted user", "2026-01-26T02:30:00Z");
  * // result = {
  * //   log_id: 123,
- * //   anomaly_score: 0.9234,
+ * //   anomaly_score: 1.0,
  * //   is_anomaly: true,
- * //   model_name: "distilbert-base-uncased-finetuned-sst-2-english"
+ * //   model_name: "Qwen/Qwen2.5-1.5B-Instruct"
  * // }
  */
-async function analyzeLog(logId, logText) {
+async function analyzeLog(logId, logText, timestamp = null) {
   try {
     const startTime = Date.now();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    const requestBody = {
+      log_id: logId,
+      log_text: logText
+    };
+    
+    // Include timestamp if provided (used for nighttime admin detection)
+    if (timestamp) {
+      requestBody.timestamp = timestamp;
+    }
 
     const response = await secureFetch(`${AI_SERVICE_URL}/analyze-log`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        log_id: logId,
-        log_text: logText
-      }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal
     });
 
@@ -165,13 +173,13 @@ async function analyzeLog(logId, logText) {
 /**
  * Analyze multiple logs in a single request (more efficient for batch processing)
  * 
- * @param {Array<{logId: number, logText: string}>} logs - Array of logs to analyze
+ * @param {Array<{logId: number, logText: string, timestamp?: string}>} logs - Array of logs to analyze
  * @returns {Promise<Array>} Array of anomaly results
  */
 async function analyzeBatch(logs) {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS * 2);
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS * logs.length);
 
     const response = await secureFetch(`${AI_SERVICE_URL}/analyze-batch`, {
       method: 'POST',
@@ -181,7 +189,8 @@ async function analyzeBatch(logs) {
       body: JSON.stringify(
         logs.map(log => ({
           log_id: log.logId,
-          log_text: log.logText
+          log_text: log.logText,
+          timestamp: log.timestamp || null
         }))
       ),
       signal: controller.signal
@@ -207,41 +216,101 @@ async function analyzeBatch(logs) {
 /**
  * Format an audit log entry into analyzable text
  * 
- * This creates a human-readable string from structured log data
- * that the sentiment model can analyze effectively.
+ * This creates natural language text optimized for the LLM anomaly detector.
+ * The format is designed to match the patterns the AI model is trained to recognize:
+ * - SQL injection patterns (SELECT, DROP, --, OR 1=1)
+ * - XSS patterns (<script>, onerror=)
+ * - Auth failures (failed login, invalid password)
+ * - Admin activity (clearly marked with "Admin" prefix)
+ * - Suspicious input (path traversal, sqlmap)
  * 
  * @param {Object} logEntry - Audit log entry from database
  * @returns {string} Formatted text for analysis
  */
 function formatLogForAnalysis(logEntry) {
   const parts = [];
-
-  // Include action type
-  if (logEntry.action) {
-    parts.push(`Action: ${logEntry.action}`);
+  const meta = logEntry.metadata || {};
+  
+  // Determine if this is an admin action (check metadata for user role)
+  const isAdmin = meta.user_role === 'admin' || 
+                  meta.role === 'admin' ||
+                  logEntry.action?.includes('ADMIN') ||
+                  logEntry.description?.toLowerCase().includes('admin');
+  
+  // Prefix admin actions clearly for nighttime detection
+  if (isAdmin) {
+    parts.push('Admin');
   }
-
-  // Include description (most important for sentiment)
-  if (logEntry.description) {
-    parts.push(logEntry.description);
+  
+  // Format based on action type for better pattern recognition
+  switch (logEntry.action) {
+    case 'LOGIN':
+      if (meta.status === 'failed' || meta.reason) {
+        // Failed login - use natural language the model recognizes
+        parts.push(`failed login attempt for user: ${meta.attempted_username || 'unknown'}`);
+        if (meta.reason) {
+          parts.push(`(${meta.reason.replace(/_/g, ' ')})`);
+        }
+      } else {
+        parts.push('user logged in successfully');
+      }
+      break;
+      
+    case 'LOGOUT':
+      parts.push('user logged out');
+      break;
+      
+    case 'CREATE_ORDER':
+    case 'APPROVE_ORDER':
+    case 'REJECT_ORDER':
+      // Include the full description for order actions
+      if (logEntry.description) {
+        parts.push(logEntry.description);
+      }
+      break;
+      
+    case 'CREATE_PRODUCT':
+    case 'UPDATE_PRODUCT':
+    case 'DELETE_PRODUCT':
+      if (logEntry.description) {
+        parts.push(logEntry.description);
+      }
+      break;
+      
+    case 'CREATE_USER':
+    case 'UPDATE_USER':
+    case 'DELETE_USER':
+      if (logEntry.description) {
+        parts.push(logEntry.description);
+      }
+      // Check for privilege escalation patterns
+      if (meta.new_role === 'admin' || meta.role_change) {
+        parts.push(`role changed to: ${meta.new_role || meta.role_change}`);
+      }
+      break;
+      
+    default:
+      // For unknown actions, use description directly
+      if (logEntry.description) {
+        parts.push(logEntry.description);
+      }
   }
-
-  // Include relevant metadata
-  if (logEntry.metadata) {
-    const meta = logEntry.metadata;
-    
-    if (meta.status) {
-      parts.push(`Status: ${meta.status}`);
-    }
-    if (meta.reason) {
-      parts.push(`Reason: ${meta.reason}`);
-    }
-    if (meta.ip) {
-      parts.push(`IP: ${meta.ip}`);
+  
+  // Append any suspicious input data that might contain attack patterns
+  // This ensures SQL injection, XSS, and path traversal patterns are visible
+  if (meta.input || meta.query || meta.data) {
+    const suspiciousData = meta.input || meta.query || meta.data;
+    if (typeof suspiciousData === 'string') {
+      parts.push(`input: ${suspiciousData}`);
     }
   }
-
-  return parts.join('. ');
+  
+  // Include IP for context (optional, helps with some patterns)
+  if (meta.ip && meta.ip !== 'unknown') {
+    parts.push(`from IP ${meta.ip}`);
+  }
+  
+  return parts.join(' ');
 }
 
 module.exports = {

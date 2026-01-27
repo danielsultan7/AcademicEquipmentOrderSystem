@@ -99,8 +99,11 @@ async function processQueue() {
         // Format the log text for analysis
         const logText = formatLogForAnalysis(logEntry);
         
-        // Call AI service
-        const result = await analyzeLog(logEntry.id, logText);
+        // Get timestamp from log entry (created_at field from database)
+        const timestamp = logEntry.created_at || logEntry.timestamp || null;
+        
+        // Call AI service with timestamp for nighttime detection
+        const result = await analyzeLog(logEntry.id, logText, timestamp);
         
         if (result) {
           // Store result in database
@@ -149,7 +152,7 @@ async function storeAnomalyScore(result) {
       anomaly_score: result.anomaly_score,
       is_anomaly: result.is_anomaly,
       model_name: result.model_name,
-      threshold_used: result.threshold || 0.7,  // Default threshold from AI service
+      threshold_used: 0.5,  // Binary classification: 0.5 threshold (score is 0 or 1)
       analysis_text: result.analysis_text || null,
       processing_time_ms: result.processing_time_ms || null,
       analyzed_at: new Date().toISOString()

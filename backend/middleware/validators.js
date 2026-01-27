@@ -142,7 +142,9 @@ module.exports = {
   validateLogin,
   validateIdParam,
   handleValidationErrors,
-  // Available but currently unused validators (kept for future use):
+  // Defined but not currently used in routes. Kept for future implementation.
+  // To use: import and add to route middleware chain, e.g.:
+  //   router.post('/', authenticate, requireAdmin, validateProductCreate, handler)
   // validateProductCreate,
   // validateProductUpdate,
   // validateOrderCreate

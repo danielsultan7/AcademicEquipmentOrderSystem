@@ -6,13 +6,10 @@
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 
-# ML/AI
+# ML/AI - Qwen LLM
 transformers>=4.37.0
 torch>=2.2.0
+accelerate>=0.26.0
 
 # Data Validation (included with FastAPI, but explicit for clarity)
 pydantic>=2.5.3
-
-# Note: torch is large (~2GB). For CPU-only, you can use:
-# pip install torch --index-url https://download.pytorch.org/whl/cpu
-# This reduces download size significantly.

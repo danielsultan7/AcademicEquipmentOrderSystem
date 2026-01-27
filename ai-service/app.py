@@ -2,35 +2,10 @@
 AI-Powered Anomaly Detection Microservice
 ==========================================
 
-This FastAPI service analyzes audit log text and returns anomaly scores
-using a pre-trained HuggingFace transformer model.
+This FastAPI service analyzes audit log text and returns anomaly classification
+using the Qwen2.5-1.5B-Instruct LLM.
 
-Design Decisions:
------------------
-1. SENTIMENT AS ANOMALY PROXY: We use sentiment analysis because:
-   - Failed operations often have negative language ("failed", "rejected", "denied")
-   - Successful operations have neutral/positive language ("completed", "approved")
-   - No training required - uses pre-trained model
-
-2. MODEL LOADING: Model is loaded ONCE at startup via @asynccontextmanager lifespan
-   - Avoids 2-3 second delay per request
-   - Model stays in memory for fast inference (~50ms per request)
-
-3. NON-BLOCKING: Uses async FastAPI with synchronous model inference
-   - FastAPI handles concurrent requests efficiently
-   - Model inference is CPU-bound but fast enough for background processing
-
-4. SEPARATION OF CONCERNS:
-   - This service ONLY does anomaly scoring
-   - Storage is handled by the Node.js backend
-   - No database connections here
-
-Academic Reference:
-------------------
-Model: distilbert-base-uncased-finetuned-sst-2-english
-- DistilBERT: 66M parameters (40% smaller than BERT, 60% faster)
-- Fine-tuned on Stanford Sentiment Treebank (SST-2)
-- Paper: Sanh et al., "DistilBERT, a distilled version of BERT" (2019)
+The model directly classifies logs as NORMAL or ANOMALOUS based on security rules.
 """
 
 import os
@@ -41,18 +16,56 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from transformers import pipeline, Pipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-# Model configuration
-MODEL_NAME = "distilbert-base-uncased-finetuned-sst-2-english"
+MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
 
-# Anomaly threshold - scores above this are flagged as anomalies
-# Configurable via environment variable
-ANOMALY_THRESHOLD = float(os.getenv("ANOMALY_THRESHOLD", "0.7"))
+SYSTEM_PROMPT = """You are a security log classifier. Analyze the log entry and respond with exactly one word: NORMAL or ANOMALOUS.
+
+CRITICAL RULE - CHECK FIRST:
+- If the log starts with "[nighttime]" AND contains the word "admin" (case-insensitive) anywhere → ANOMALOUS
+- This includes: "Admin", "admin", "ADMIN", "administrator"
+
+Other anomaly patterns (mark as ANOMALOUS):
+1. SQL injection: SELECT, DROP, DELETE, INSERT, UPDATE, --, ', OR 1=1, UNION
+2. XSS attacks: <script>, onerror=, javascript:, <img, onclick=, onload=
+3. Authentication failures: "failed login", "invalid password", "authentication rejected", "login failed"
+4. Privilege escalation: "unauthorized", "access denied", "permission denied", "role change"
+5. Suspicious tools: sqlmap, path traversal (../), burp, nikto
+
+If NONE of the above patterns match, return NORMAL.
+
+Respond with exactly one word: NORMAL or ANOMALOUS"""
+
+
+def get_time_period(timestamp: Optional[str]) -> str:
+    """
+    Check if timestamp is during nighttime (00:00-06:00) or daytime.
+    Returns: "[nighttime]" or "[daytime]"
+    """
+    if not timestamp:
+        return "[daytime]"  # Default to daytime if no timestamp
+    
+    try:
+        # Parse ISO format timestamp (e.g., "2026-01-26T02:30:00Z")
+        from datetime import datetime
+        
+        # Handle both Z suffix and +00:00 formats
+        ts = timestamp.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(ts)
+        hour = dt.hour
+        
+        # Nighttime: 00:00 - 05:59 (hour 0-5)
+        if 0 <= hour < 6:
+            return "[nighttime]"
+        else:
+            return "[daytime]"
+    except Exception:
+        return "[daytime]"  # Default to daytime on parse error
 
 # Logging setup
 logging.basicConfig(
@@ -66,9 +79,8 @@ logger = logging.getLogger(__name__)
 # GLOBAL MODEL REFERENCE
 # =============================================================================
 
-# The model is stored here after loading at startup
-# This avoids reloading the model on every request
-classifier: Optional[Pipeline] = None
+tokenizer: Optional[AutoTokenizer] = None
+model: Optional[AutoModelForCausalLM] = None
 
 
 # =============================================================================
@@ -76,22 +88,17 @@ classifier: Optional[Pipeline] = None
 # =============================================================================
 
 class AnalyzeLogRequest(BaseModel):
-    """
-    Input schema for log analysis.
-    
-    Attributes:
-        log_id: Unique identifier of the audit log entry
-        log_text: The text content to analyze (e.g., "Failed login attempt for user admin")
-    """
     log_id: int = Field(..., description="ID of the audit log entry")
     log_text: str = Field(..., min_length=1, max_length=2000, description="Log text to analyze")
+    timestamp: Optional[str] = Field(None, description="Timestamp of the log entry")
 
     model_config = {
         "json_schema_extra": {
             "examples": [
                 {
                     "log_id": 123,
-                    "log_text": "Failed login attempt for username: admin from IP 192.168.1.100"
+                    "log_text": "Failed login attempt for username: admin from IP 192.168.1.100",
+                    "timestamp": "2026-01-26T10:30:00Z"
                 }
             ]
         }
@@ -99,15 +106,6 @@ class AnalyzeLogRequest(BaseModel):
 
 
 class AnalyzeLogResponse(BaseModel):
-    """
-    Output schema for anomaly analysis.
-    
-    Attributes:
-        log_id: Echo of the input log ID (for correlation)
-        anomaly_score: Float 0-1, higher = more anomalous
-        is_anomaly: Boolean flag based on threshold
-        model_name: Name of the model used for transparency
-    """
     log_id: int
     anomaly_score: float = Field(..., ge=0.0, le=1.0)
     is_anomaly: bool
@@ -115,11 +113,9 @@ class AnalyzeLogResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    """Health check response schema."""
     status: str
     model_loaded: bool
     model_name: str
-    threshold: float
 
 
 # =============================================================================
@@ -128,42 +124,27 @@ class HealthResponse(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Lifespan context manager for FastAPI.
-    
-    This runs ONCE when the server starts:
-    - Loads the HuggingFace model into memory
-    - Model stays loaded for the entire server lifetime
-    
-    Benefits:
-    - Model loading (2-3 seconds) happens only at startup
-    - All requests share the same model instance
-    - Memory efficient - single model copy
-    """
-    global classifier
+    global tokenizer, model
     
     logger.info("=" * 60)
     logger.info("STARTING ANOMALY DETECTION SERVICE")
     logger.info("=" * 60)
     
-    # Load the model
     logger.info(f"Loading model: {MODEL_NAME}")
-    logger.info("This may take a few seconds on first run (downloading weights)...")
+    logger.info("This may take a minute on first run (downloading weights)...")
     
     start_time = time.time()
     
     try:
-        # Create the sentiment analysis pipeline
-        # device=-1 forces CPU usage (no GPU required)
-        classifier = pipeline(
-            task="text-classification",
-            model=MODEL_NAME,
-            device=-1  # CPU only
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_NAME,
+            torch_dtype="auto",
+            device_map="auto"
         )
         
         load_time = time.time() - start_time
         logger.info(f"Model loaded successfully in {load_time:.2f} seconds")
-        logger.info(f"Anomaly threshold: {ANOMALY_THRESHOLD}")
         logger.info("Service is ready to accept requests")
         logger.info("=" * 60)
         
@@ -171,12 +152,62 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to load model: {e}")
         raise RuntimeError(f"Model loading failed: {e}")
     
-    # Yield control to the application
     yield
     
-    # Cleanup on shutdown (if needed)
     logger.info("Shutting down anomaly detection service")
-    classifier = None
+    tokenizer = None
+    model = None
+
+
+# =============================================================================
+# INFERENCE FUNCTION
+# =============================================================================
+
+def classify_log(log_text: str, timestamp: Optional[str] = None) -> str:
+    """
+    Classify a log entry using the LLM.
+    Returns: "NORMAL" or "ANOMALOUS"
+    """
+    # Get time period tag (nighttime or daytime)
+    time_period = get_time_period(timestamp)
+    full_log = f"{time_period} {log_text}"
+    
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": full_log}
+    ]
+    
+    # Apply chat template
+    text = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
+    
+    inputs = tokenizer([text], return_tensors="pt").to(model.device)
+    
+    # Generate with deterministic settings
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=10,
+        temperature=0.0,
+        do_sample=False,
+        pad_token_id=tokenizer.eos_token_id
+    )
+    
+    # Extract only the generated tokens
+    generated_ids = outputs[0][inputs["input_ids"].shape[1]:]
+    response = tokenizer.decode(generated_ids, skip_special_tokens=True)
+    
+    # Normalize output
+    result = response.strip().upper()
+    
+    # Validate and default to NORMAL if unexpected output
+    if result not in ("NORMAL", "ANOMALOUS"):
+        logger.warning(f"Unexpected model output: '{response}', defaulting to NORMAL")
+        return "NORMAL"
+    
+    return result
 
 
 # =============================================================================
@@ -185,28 +216,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Audit Log Anomaly Detection Service",
-    description="""
-    AI-powered anomaly detection for audit logs.
-    
-    This service uses a pre-trained transformer model to analyze audit log text
-    and determine if it represents anomalous behavior.
-    
-    ## How it works
-    
-    1. Receives audit log text via POST request
-    2. Runs sentiment analysis using DistilBERT
-    3. Maps sentiment to anomaly score:
-       - NEGATIVE sentiment → higher anomaly score (suspicious)
-       - POSITIVE sentiment → lower anomaly score (normal)
-    4. Returns structured anomaly assessment
-    
-    ## Use Cases
-    
-    - Failed login attempts → likely flagged as anomaly
-    - Successful operations → likely flagged as normal
-    - Rejected/denied actions → likely flagged as anomaly
-    """,
-    version="1.0.0",
+    description="AI-powered anomaly detection for audit logs using Qwen LLM.",
+    version="2.0.0",
     lifespan=lifespan
 )
 
@@ -217,53 +228,16 @@ app = FastAPI(
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
-    """
-    Health check endpoint.
-    
-    Use this to verify:
-    - Service is running
-    - Model is loaded
-    - Current configuration
-    
-    Called by Node.js backend before sending analysis requests.
-    """
     return HealthResponse(
-        status="healthy" if classifier is not None else "unhealthy",
-        model_loaded=classifier is not None,
-        model_name=MODEL_NAME,
-        threshold=ANOMALY_THRESHOLD
+        status="healthy" if model is not None else "unhealthy",
+        model_loaded=model is not None,
+        model_name=MODEL_NAME
     )
 
 
 @app.post("/analyze-log", response_model=AnalyzeLogResponse, tags=["Analysis"])
 async def analyze_log(request: AnalyzeLogRequest):
-    """
-    Analyze a single audit log for anomalies.
-    
-    ## Algorithm
-    
-    1. Run sentiment classification on log_text
-    2. Get prediction: {label: "POSITIVE"|"NEGATIVE", score: 0-1}
-    3. Convert to anomaly score:
-       - If NEGATIVE: anomaly_score = score (high confidence negative = high anomaly)
-       - If POSITIVE: anomaly_score = 1 - score (high confidence positive = low anomaly)
-    4. Compare against threshold to determine is_anomaly
-    
-    ## Example Mappings
-    
-    | Log Text | Sentiment | Confidence | Anomaly Score |
-    |----------|-----------|------------|---------------|
-    | "Failed login attempt" | NEGATIVE | 0.95 | 0.95 |
-    | "User logged in successfully" | POSITIVE | 0.92 | 0.08 |
-    | "Order rejected by manager" | NEGATIVE | 0.88 | 0.88 |
-    | "Order approved" | POSITIVE | 0.85 | 0.15 |
-    
-    ## Response Time
-    
-    Typical inference time: 30-100ms on CPU
-    """
-    # Validate model is loaded
-    if classifier is None:
+    if model is None or tokenizer is None:
         logger.error("Model not loaded - service not ready")
         raise HTTPException(
             status_code=503,
@@ -271,37 +245,18 @@ async def analyze_log(request: AnalyzeLogRequest):
         )
     
     try:
-        # Run inference
-        # The model returns: [{"label": "POSITIVE"|"NEGATIVE", "score": float}]
         start_time = time.time()
-        result = classifier(request.log_text, truncation=True, max_length=512)
-        inference_time = (time.time() - start_time) * 1000  # Convert to ms
         
-        # Extract prediction
-        prediction = result[0]
-        label = prediction["label"]
-        score = prediction["score"]
+        classification = classify_log(request.log_text, request.timestamp)
         
-        # Map sentiment to anomaly score
-        # NEGATIVE sentiment indicates potentially anomalous behavior
-        if label == "NEGATIVE":
-            anomaly_score = score
-        else:  # POSITIVE
-            anomaly_score = 1.0 - score
+        inference_time = (time.time() - start_time) * 1000
         
-        # Round to 4 decimal places for cleaner output
-        anomaly_score = round(anomaly_score, 4)
+        is_anomaly = classification == "ANOMALOUS"
+        anomaly_score = 1.0 if is_anomaly else 0.0
         
-        # Determine if this is an anomaly based on threshold
-        is_anomaly = anomaly_score >= ANOMALY_THRESHOLD
-        
-        # Log for debugging/monitoring
         logger.info(
-            f"Log {request.log_id}: "
-            f"sentiment={label}({score:.3f}) → "
-            f"anomaly_score={anomaly_score} "
-            f"[{'ANOMALY' if is_anomaly else 'NORMAL'}] "
-            f"({inference_time:.1f}ms)"
+            f"Log {request.log_id}: {classification} "
+            f"(score={anomaly_score}) [{inference_time:.1f}ms]"
         )
         
         return AnalyzeLogResponse(
@@ -321,37 +276,23 @@ async def analyze_log(request: AnalyzeLogRequest):
 
 @app.post("/analyze-batch", tags=["Analysis"])
 async def analyze_batch(requests: list[AnalyzeLogRequest]):
-    """
-    Analyze multiple logs in a single request.
-    
-    More efficient than multiple single requests when processing
-    a backlog of logs.
-    
-    Returns a list of AnalyzeLogResponse objects.
-    """
-    if classifier is None:
+    if model is None or tokenizer is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     results = []
     for req in requests:
         try:
-            # Reuse the single analysis logic
-            prediction = classifier(req.log_text, truncation=True, max_length=512)[0]
-            label = prediction["label"]
-            score = prediction["score"]
-            
-            anomaly_score = score if label == "NEGATIVE" else 1.0 - score
-            anomaly_score = round(anomaly_score, 4)
+            classification = classify_log(req.log_text, req.timestamp)
+            is_anomaly = classification == "ANOMALOUS"
             
             results.append(AnalyzeLogResponse(
                 log_id=req.log_id,
-                anomaly_score=anomaly_score,
-                is_anomaly=anomaly_score >= ANOMALY_THRESHOLD,
+                anomaly_score=1.0 if is_anomaly else 0.0,
+                is_anomaly=is_anomaly,
                 model_name=MODEL_NAME
             ))
         except Exception as e:
             logger.error(f"Batch analysis failed for log {req.log_id}: {e}")
-            # Continue processing other logs
     
     logger.info(f"Batch analysis complete: {len(results)}/{len(requests)} successful")
     return results
